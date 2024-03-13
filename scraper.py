@@ -128,36 +128,83 @@ def get_text_from_data_testid(
     except NoSuchElementException:
         text = None
     
-    return text
+    return text if test != 'brak informacji' else None
 
+def get_location_from_map(
+    driver : selenium.webdriver.chrome.webdriver.WebDriver) -> dict:
+    """
+    Retrieves geographical coordinates from a Google Maps link element on a webpage.
+
+    Parameters:
+    driver (selenium.webdriver.chrome.webdriver.WebDriver): The web driver instance from Selenium.
+
+    Returns:
+    dict: A dictionary containing the 'latitude' and 'longitude' as strings extracted from the link.
+    """
+
+    map_link_elem = driver.find_elements(By.XPATH, '//a[@title="Pokaż ten obszar w Mapach Google (otwiera się w nowym oknie)"]')
+    map_link = [elem.get_attribute('href') for elem in map_link_elem]
+    geo_location = {
+        'latitude' : re.search('ll=(.*),',str(map_link[0])).group(1),
+        'longitude' : re.search(',(.*)&z',str(map_link[0])).group(1)}
+
+    return geo_location
+
+def get_adv_description(
+    driver : selenium.webdriver.chrome.webdriver.WebDriver,
+    button_xpath : str = 
+    button_text : str = 'Pokaż więcej') -> dict:
+    """
+    Retrieves the full advertisement description from a web page by clicking a button to expand the text if necessary.
+
+    Args:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): A Selenium WebDriver instance for Chrome, used to control the browser.
+    - button_text (str, optional): The text displayed on the button that expands the advertisement description. Defaults to 'Pokaż więcej'.
+
+    Returns:
+    - str: The full text of the advertisement description.
+    """
+
+    # Find the button to load full description
+    try:
+        button = driver.find_element(By.XPATH, f"//button[.//span[contains(text(), '{button_text}')]]")
+        button.click()
+    except NoSuchElementException:
+        pass
+
+    # Get description
+    adv_description = driver.find_element(By.XPATH, f'//div[@data-cy="adPageAdDescription"]').text
+
+    return adv_description
 
 # def scrape_announcement(
 #     driver : selenium.webdriver.chrome.webdriver.WebDriver,
 #     announcements_link : str,
 #     sleep_length : float = 0.5):
 
-#     # Containers
-#     herf = []
-#     rent_price = []
-#     additional_fees = []
+#     geo_location = get_location_from_map(driver)
 
-#     location = []
-#     area = []
-#     room_num = []
-#     floor  = []
-#     building_type = []
-#     extra_space = []
-#     flat_condition = []
-
-#     advertiser_type = []
-#     students_allowed = []
-#     furnishings  = []
-#     utilities = []
-#     elevator = []
-#     parking_space = []
-#     year_of_construction = []
-#     additional_information = []
-
-#     latitude = []
-#     longitude = []
-#     adv_description = []
+#     scrape_dict = {
+#         "herf" = announcements_link
+#         # Explained variables
+#         "rent_price" = get_text_from_aria_label(driver, 'Cena', 'strong')
+#         "additional_fees" = get_text_from_data_testid(driver, 'rent')
+#         # Explanatory variables
+#         "location" = get_text_from_aria_label(driver, 'Adres', 'a')
+#         "area" = get_text_from_data_testid(driver, 'area')
+#         "room_num" = get_text_from_data_testid(driver, 'rooms_num')
+#         "floor" = get_text_from_data_testid(driver, 'floor')
+#         "building_type" = get_text_from_data_testid(driver, 'building_type')
+#         "extra_space" = get_text_from_data_testid(driver, 'outdoor')
+#         "flat_condition" = get_text_from_data_testid(driver, 'construction_status')
+#         "advertiser_type" = get_text_from_data_testid(driver, 'advertiser_type')
+#         "students_allowed" = get_text_from_data_testid(driver, 'rent_to_students')
+#         "furnishings" = get_text_from_data_testid(driver, 'equipment_types')
+#         "elevator" = get_text_from_data_testid(driver, 'lift')
+#         "parking_space" = get_text_from_data_testid(driver, 'car')
+#         "year_of_construction" = get_text_from_data_testid(driver, 'build_year')
+#         "additional_information" = get_text_from_data_testid(driver, 'extras_types')
+#         "latitude" = geo_location['latitude']
+#         "longitude" = geo_location['longitude']
+#         "adv_description" = get_adv_description(driver)
+#     }
