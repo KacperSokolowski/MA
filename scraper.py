@@ -5,6 +5,7 @@ from selenium.common.exceptions import NoSuchElementException
 from time import sleep
 import re
 
+
 def initialize_otodom_scraper(sleep_length : float = 0.5) -> selenium.webdriver.chrome.webdriver.WebDriver:
     """
     Initializes and returns a Chrome WebDriver with the Otodom.pl homepage loaded, 
@@ -27,7 +28,8 @@ def initialize_otodom_scraper(sleep_length : float = 0.5) -> selenium.webdriver.
     sleep(sleep_length)
 
     return driver
-    
+
+
 def get_announcements_links(
     driver : selenium.webdriver.chrome.webdriver.WebDriver,
     first_page_url : str,
@@ -77,3 +79,85 @@ def get_announcements_links(
     announcements_links = list(dict.fromkeys(announcements_links))
     return announcements_links
 
+
+def get_text_from_aria_label(
+    driver : selenium.webdriver.chrome.webdriver.WebDriver,
+    label_name : str,
+    tag_name : str = 'div') -> str:
+
+    """
+    Retrieves the text content of an element identified by an aria label and tag name.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the web page.
+    - label_name (str): The value of the `aria-label` attribute of the target element.
+    - tag_name (str, optional): The tag name of the target element. Defaults to 'div'.
+
+    Returns:
+    - str or None: The text content of the found element, or `None` if the element is not found.
+    """
+
+    try:
+        text = driver.find_element(
+            By.XPATH, f'//{tag_name}[@aria-label="{label_name}"]').text
+    except NoSuchElementException:
+        text = None
+
+    return text
+
+
+def get_text_from_data_testid(
+    driver : selenium.webdriver.chrome.webdriver.WebDriver,
+    label_name : str,
+    tag_name : str = 'div') -> str:
+    """
+    Retrieves the text content of an element identified by data-testid element and tag name.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the web page.
+    - label_name (str): The value of the `aria-label` attribute of the target element.
+    - tag_name (str, optional): The tag name of the target element. Defaults to 'div'.
+
+    Returns:
+    - str or None: The text content of the found element, or `None` if the element is not found.
+    """
+
+    try:
+        text = driver.find_element(
+            By.XPATH, f'//{tag_name}[@data-testid="table-value-{label_name}"]').text
+    except NoSuchElementException:
+        text = None
+    
+    return text
+
+
+# def scrape_announcement(
+#     driver : selenium.webdriver.chrome.webdriver.WebDriver,
+#     announcements_link : str,
+#     sleep_length : float = 0.5):
+
+#     # Containers
+#     herf = []
+#     rent_price = []
+#     additional_fees = []
+
+#     location = []
+#     area = []
+#     room_num = []
+#     floor  = []
+#     building_type = []
+#     extra_space = []
+#     flat_condition = []
+
+#     advertiser_type = []
+#     students_allowed = []
+#     furnishings  = []
+#     utilities = []
+#     elevator = []
+#     parking_space = []
+#     year_of_construction = []
+#     additional_information = []
+
+#     latitude = []
+#     longitude = []
+#     adv_description = []
