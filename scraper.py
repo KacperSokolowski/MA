@@ -345,7 +345,7 @@ def scrape_otodom_announcements(
 def run_otodom_scraper(
     first_page_url : str,
     add_filtered_links : False,
-    filtered_links_dict : dict,
+    filtered_links_dict : dict = {},
     return_df : bool = True,
     sleep_length : float = 0.5,
     save_as_csv : bool = True,
