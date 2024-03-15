@@ -1,3 +1,28 @@
+"""
+This module provides tools for scraping apartment rental announcements from the Otodom website.
+It includes functionality to initialize a web scraper using Selenium WebDriver,
+collect links to announcements from a given URL, extract information from individual announcements,
+and compile the data into a Pandas DataFrame. Additionally, it can filter announcements based on user-defined criteria,
+save the extracted data as a CSV file, and handle dynamic content loading on web pages. The module is designed to be flexible,
+allowing for customizable scraping configurations such as specifying sleep intervals to mimic human browsing behavior,
+choosing whether to save the data as a CSV file, and including additional filtered links to refine the data collection process.
+
+Dependencies:
+- selenium: For automating web browser interaction to scrape data.
+- pandas: For organizing scraped data into structured formats.
+- re: For regex operations to parse URLs and extract relevant information.
+- collections.defaultdict: For efficiently collecting and organizing scraped data.
+- datetime: For timestamping saved data files.
+- time.sleep: For pacing requests to simulate human browsing patterns and manage dynamic content loading.
+
+Features:
+- Initialize Selenium WebDriver with options tailored for Otodom scraping.
+- Navigate through paginated listing URLs to collect announcement links.
+- Extract detailed information from individual announcement pages.
+- Compile and optionally filter announcement data based on additional criteria.
+- Save the compiled data as a CSV file for further analysis or use.
+"""
+
 import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
