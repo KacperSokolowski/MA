@@ -5,7 +5,6 @@ from selenium.common.exceptions import NoSuchElementException
 from time import sleep
 import re
 import pandas as pd
-import numpy as np
 from collections import defaultdict
 from datetime import datetime
 
@@ -183,14 +182,12 @@ def get_location_from_map(
     return geo_location
 
 def get_adv_description(
-    driver : selenium.webdriver.chrome.webdriver.WebDriver,
-    button_text : str = 'Pokaż więcej') -> str:
+    driver : selenium.webdriver.chrome.webdriver.WebDriver) -> str:
     """
     Retrieves the full advertisement description from a web page by clicking a button to expand the text if necessary.
 
     Args:
     - driver (selenium.webdriver.chrome.webdriver.WebDriver): A Selenium WebDriver instance for Chrome, used to control the browser.
-    - button_text (str, optional): The text displayed on the button that expands the advertisement description. Defaults to 'Pokaż więcej'.
 
     Returns:
     - str: The full text of the advertisement description,
@@ -200,7 +197,7 @@ def get_adv_description(
     # Find the button to load full description
     button = None
     try:
-        button = driver.find_element(By.XPATH, f"//button[.//span[contains(text(), '{button_text}')]]")
+        button = driver.find_element(By.XPATH, f"//button[.//span[contains(text(), 'Pokaż więcej')]]")
 
     except NoSuchElementException:
         pass
@@ -256,7 +253,7 @@ def scrape_single_announcement(
     
     return scrape_dict
 
-def scrape_otodom_announcement(
+def scrape_otodom_announcements(
     driver : selenium.webdriver.chrome.webdriver.WebDriver,
     announcements_links : list,
     sleep_length : float = 0.5,
@@ -319,3 +316,75 @@ def scrape_otodom_announcement(
                   encoding='utf-8',
                   index=False)
     return df
+
+def run_otodom_scraper(
+    first_page_url : str,
+    add_filtered_links : False,
+    filtered_links_dict : dict,
+    return_df : bool = True,
+    sleep_length : float = 0.5,
+    save_as_csv : bool = True,
+    csv_file_name_prefix : str = 'otodom',
+    csv_destination_path : str = 'data_raw') -> pd.DataFrame:
+    """
+    Executes the Otodom scraper to collect apartment for rent announcements from a given URL, optionally including data 
+    from additional filtered links, and returns or saves the data as specified.
+
+    Parameters:
+    - first_page_url (str): URL to the first page of unfiltered announcements.
+    - add_filtered_links (bool, optional): If True, additional information from filtered links is included. Defaults to False.
+    - filtered_links_dict (dict): A dictionary where keys represent column names for the final DataFrame to indicate 
+      if an announcement is within filtered announcements, and values are URLs to the first page of filtered announcements.
+    - return_df (bool, optional): Determines whether to return a DataFrame. Defaults to True.
+    - sleep_length (float, optional): Time in seconds to wait between actions to ensure page content loads. Defaults to 0.5.
+    - save_as_csv (bool, optional): If True, saves the resulting DataFrame as a CSV file. Defaults to True.
+    - csv_file_name_prefix (str, optional): Prefix for the generated CSV file name. Defaults to 'otodom'.
+    - csv_destination_path (str, optional): Path to save the CSV file. Defaults to 'data_raw'.
+
+    Returns:
+    - pd.DataFrame or None: The DataFrame containing scraped data if return_df is True; otherwise, None.
+
+    The function initializes the scraper, collects links to announcements, and optionally processes additional 
+    filtered links as specified in `filtered_links_dict`. The collected data can be returned as a DataFrame, 
+    saved as a CSV file, or both depending on the function parameters.
+    """
+
+    # Initialize driver
+    driver = initialize_otodom_scraper(sleep_length)
+
+    # Get announcements URLs
+    announcements_links = get_announcements_links(driver, first_page_url, sleep_length)
+
+    # Run scraper, save as csv and return df if additional info from other filtered pages is not required
+    if not add_filtered_links:
+        df = scrape_otodom_announcements(
+            driver = driver,
+            announcements_links = announcements_links,
+            save_as_csv = save_as_csv,
+            csv_file_name_prefix = csv_file_name_prefix,
+            csv_destination_path = csv_destination_path)
+        
+        return df if return_df else None
+    
+    # Run scraper
+    df = scrape_otodom_announcements(
+        driver = driver,
+        announcements_links = announcements_links,
+        save_as_csv = False)
+    
+    # Get additnal info
+    for column_name, ulr in filtered_links_dict.items():
+        filtered_annoucments = get_announcements_links(driver, ulr)
+        filtered_annoucments = list(dict.fromkeys(filtered_annoucments))
+        df[column_name] = df['link'].isin(filtered_annoucments)
+
+    # Save as csv
+    if save_as_csv:
+        current_date = datetime.now().strftime("%Y_%m_%d")
+        file_name = f"{csv_file_name_prefix}_{current_date}.csv"
+        path = f'{csv_destination_path}/{file_name}'
+        df.to_csv(path,
+                  encoding='utf-8',
+                  index=False)
+    
+    return df if return_df else None
