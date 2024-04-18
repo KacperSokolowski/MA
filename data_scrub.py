@@ -110,7 +110,7 @@ def nearest_distance(lat: float, lon: float,
         return np.nan
     
     dist_lst = []
-    for station, coords in locations.items():
+    for coords in locations.values():
         loc1 = (coords['Latitude'], coords['Longitude'])
         loc2 = (lat, lon)
         dist_lst.append(hs.haversine(loc1, loc2))
@@ -153,7 +153,6 @@ def scrub_scraped_data(
 
     # Step 5 Create binary columns from furnishings
     df['dishwasher'] = df['furnishings'].str.contains('zmywarka')
-    
 
     # Step 6 Create binary columns from building_type
 
