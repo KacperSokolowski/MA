@@ -268,35 +268,54 @@ def scrub_data(
     'pralka', 'pralką']
 
     df['is_furnished'] = df.apply(
-    lambda row: not pd.isna(row['furnishings']) or contains_keywords_nlp(row['adv_description'], furnishing_keywords),
-    axis=1
-    )
+        lambda row: not pd.isna(row['furnishings']) or contains_keywords_nlp(row['adv_description'], furnishing_keywords),
+        axis=1)
 
     # Step 6 Determine whether apartment has a dishwasher - create binary column
+    # Drop furnishings column
     initialize_morf()
 
     dishwasher_keywords = ['zmywarka']
 
     df['dishwasher'] = df.apply(
-    lambda row: (not pd.isna(row['furnishings']) and 'zmywarka' in row['furnishings']) or\
-        contains_keywords_morf(row['adv_description'], dishwasher_keywords),
-    axis=1
-    )
+        lambda row: (not pd.isna(row['furnishings']) and 'zmywarka' in row['furnishings']) or\
+            contains_keywords_morf(row['adv_description'], dishwasher_keywords),
+        axis=1)
+    df.drop(['furnishings'], axis=1, inplace=True)
     
     # Step 7 Determine whether the apartment has air conditioning - create binary column
     air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
 
-    df['disair_conditioninghwasher'] = df.apply(
-    lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
-        contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
-    axis=1
-    )
+    df['air_conditioning'] = df.apply(
+        lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
+            contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
+        axis=1)
+
+    # Step 8 Determine whether the apartment have to be renovated
+    # Drop flat_condition column
+    df['for_renovation'] = df['flat_condition'].apply(
+        lambda x: False if pd.isna(x) or x == 'do zamieszkania' else True)
+    df.drop(['flat_condition'], axis=1, inplace=True)
+
+    # Step 9 Create binary columns from advertiser_type
+    # Drop advertiser_type column
+    df['at_private'] = df.advertiser_type.str.contains('prywatny')
+    df['at_agency'] = df.advertiser_type.str.contains('biuro nieruchomości')
+    df['at_developer'] = df.advertiser_type.str.contains('deweloper')
+    df.drop(['advertiser_type'], axis=1, inplace=True)
+
+    # Step 10 Adjust students_allowed column to binary form
+    df['students_allowed'] = df['students_allowed'].apply(lambda x: x == 'tak')
+
+    # Step 11 Adjust elevator column to binary form
+    df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
+
 
     return df
 
 def concat_csv_files(
     folder_path: str = 'data_raw',
-    regex_pattern: str = r'^.*otodom_last7.*\.csv$'):
+    regex_pattern: str = r'^.*otodom_last7.*\.csv$') -> pd.DataFrame:
     """
     Reads all CSV files in a specified folder, filters them by a regex pattern, and concatenates them into a single DataFrame.
 
