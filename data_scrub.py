@@ -1,6 +1,10 @@
 import pandas as pd
 import numpy as np
+import os
+import re
 import haversine as hs
+import spacy
+import morfeusz2
 
 def get_numbers(input_string : str) -> float:
     """
@@ -117,9 +121,109 @@ def nearest_distance(lat: float, lon: float,
     
     return round(min(dist_lst), 3)
 
-def scrub_scraped_data(
-        df : pd.DataFrame,
-        subway_locations : dict = {}) -> pd.DataFrame:
+def contains_keywords_nlp(description: str, keywords: list,
+                          negations: list = ['nie', 'brak'],
+                          negation_distance: int = 2) -> bool:
+    """
+    Determines whether a textual description contains any specified keywords and considers the influence of nearby negation words.
+
+    This function processes a text description using a natural language processing model to break the text into sentences and tokenize them.
+    For each sentence, it checks if any of the provided keywords are present and then examines if any negation words are
+    close enough to potentially negate the meaning of the keyword. The function returns True if a keyword is found without
+    a nearby negation that affects its context, and it stops further analysis once a valid keyword is detected.
+
+    Parameters:
+    - description (str): The text description to analyze for the presence of keywords.
+    - keywords (list): A list of keywords to search for in the description.
+    - negations (list): A list of negation words (default includes 'nie', 'brak') that can alter the context of the keywords.
+    - negation_distance (int): The maximum allowable distance (in terms of token indices) between a keyword and a negation word to consider the keyword negated.
+
+    Returns:
+    - bool: True if at least one keyword is found in the description without being negated, False otherwise.
+
+    Requires:
+    - A loaded natural language processing model (nlp) to tokenize the text and extract sentences and tokens.
+    """
+    doc = nlp(description.lower())
+    contains_keywords = False
+    for sentence in doc.sents:
+        keywords_presence = [token for token in sentence if token.lemma_ in keywords]
+        negation_presence = [token for token in sentence if token.lemma_ in negations]
+        
+        # Check if any negation is close to a furniture keyword
+        if keywords_presence:
+            contains_keywords = not any(negation.i < keyword_token.i + negation_distance and negation.i > keyword_token.i - negation_distance
+                                 for negation in negation_presence
+                                 for keyword_token in keywords_presence)
+            if contains_keywords:
+                break
+
+    return contains_keywords
+
+def contains_keywords_morf(description: str, keywords: list):
+    """
+    Determines whether a given text description contains any of a list of keywords based on morphological analysis.
+
+    This function processes the input text using a natural language processing model to tokenize the text.
+    For each token, it performs a morphological analysis to identify the base form of the word.
+    The function then checks if this base form matches any of the keywords provided in the list.
+    It returns True as soon as a keyword match is found and stops further analysis.
+
+    Parameters:
+    - description (str): The text description to analyze for the presence of keywords.
+    - keywords (list): A list of keyword strings to search for in the text, based on their morphological base forms.
+
+    Returns:
+    - bool: True if at least one of the keywords is found in the text, False otherwise.
+
+    Requires:
+    - A loaded natural language processing model (nlp) to tokenize the text.
+    - A morphological analysis tool morfeusz2 (morf) that provides the base form of each token.
+    """
+
+    doc = nlp(description.lower())
+    contains_keywords = False
+    for token in doc:
+        analysis = morf.analyse(token.text)
+        try:
+            contains_keywords = True if analysis[0][2][1] in keywords else contains_keywords
+        except IndexError:
+            continue
+
+        if contains_keywords:
+            break
+            
+    return contains_keywords
+
+def initialize_nlp() -> None:
+    """
+    Initializes a global NLP model using the spaCy library with the Polish small model.
+    This allows the `nlp` model to be used elsewhere in the code after initialization.
+
+    Returns:
+    - None
+    """
+    global nlp
+    nlp = spacy.load("pl_core_news_sm")
+
+    return None
+
+def initialize_morf() -> None:
+    """
+    Initializes a global morphological analyzer using the Morfeusz2 library.
+    This prepares `morf` for use throughout the codebase for morphological analysis tasks.
+
+    Returns:
+    - None
+    """
+    global morf
+    morf = morfeusz2.Morfeusz()
+
+    return None
+
+def scrub_data(
+    df : pd.DataFrame,
+    subway_locations : dict = {}) -> pd.DataFrame:
 
     # Copy df
     df = df.copy()
@@ -151,9 +255,67 @@ def scrub_scraped_data(
     df['bt_other'] = ~(df['bt_apartment'] | df['bt_tenement'] | df['bt_block'])
     df.drop(['building_type'], axis=1, inplace=True)
 
-    # Step 5 Create binary columns from furnishings
-    df['dishwasher'] = df['furnishings'].str.contains('zmywarka')
+    # Step 5 Determine whether apartment is furnished - create binary column
+    initialize_nlp()
 
-    # Step 6 Create binary columns from building_type
+    furnishing_keywords = [
+    'umeblowany', 'umeblowana', 'umeblowane',
+    'wyposażony', 'wyposażona', 'wyposażone',
+    'meble', 'meblami'
+    'łóżko', 'łóżkiem', 'łóżkami'
+    'sofa', 'sofą', 'sofami'
+    'szafa', 'szafą', 'szafami'
+    'pralka', 'pralką']
+
+    df['is_furnished'] = df.apply(
+    lambda row: not pd.isna(row['furnishings']) or contains_keywords_nlp(row['adv_description'], furnishing_keywords),
+    axis=1
+    )
+
+    # Step 6 Determine whether apartment has a dishwasher - create binary column
+    initialize_morf()
+
+    dishwasher_keywords = ['zmywarka']
+
+    df['dishwasher'] = df.apply(
+    lambda row: (not pd.isna(row['furnishings']) and 'zmywarka' in row['furnishings']) or\
+        contains_keywords_morf(row['adv_description'], dishwasher_keywords),
+    axis=1
+    )
+    
+    # Step 7 Determine whether the apartment has air conditioning - create binary column
+    air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
+
+    df['disair_conditioninghwasher'] = df.apply(
+    lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
+        contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
+    axis=1
+    )
 
     return df
+
+def concat_csv_files(
+    folder_path: str = 'data_raw',
+    regex_pattern: str = r'^.*otodom_last7.*\.csv$'):
+    """
+    Reads all CSV files in a specified folder, filters them by a regex pattern, and concatenates them into a single DataFrame.
+
+    Parameters:
+    - folder_path (str): The path to the folder containing CSV files.
+    - regex_pattern (str): The regex pattern to filter file names.
+
+    Returns:
+    - pd.DataFrame: A concatenated DataFrame containing data from all filtered CSV files.
+    """
+
+    dfs = []
+
+    for filename in os.listdir(folder_path):
+        if re.match(regex_pattern, filename):
+            file_path = os.path.join(folder_path, filename)
+            dfs.append(pd.read_csv(file_path))
+    
+    if dfs:
+        return pd.concat(dfs, ignore_index=True)
+    else:
+        return pd.DataFrame()
