@@ -386,6 +386,7 @@ def run_otodom_scraper(
             driver = driver,
             announcements_links = announcements_links,
             save_as_csv = save_as_csv,
+            sleep_length = sleep_length,
             csv_file_name_prefix = csv_file_name_prefix,
             csv_destination_path = csv_destination_path)
         
@@ -395,6 +396,7 @@ def run_otodom_scraper(
     df = scrape_otodom_announcements(
         driver = driver,
         announcements_links = announcements_links,
+        sleep_length = sleep_length,
         save_as_csv = False)
     
     # Get additnal info
