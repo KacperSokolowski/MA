@@ -5,6 +5,10 @@ import re
 import haversine as hs
 import spacy
 import morfeusz2
+import selenium
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from time import sleep
 
 def get_numbers(input_string : str) -> float:
     """
@@ -338,3 +342,94 @@ def concat_csv_files(
         return pd.concat(dfs, ignore_index=True)
     else:
         return pd.DataFrame()
+
+def initialize_driver() -> selenium.webdriver.chrome.webdriver.WebDriver:  
+    """
+    Initializes and returns a Chrome WebDriver instance that navigates to Google Maps and handles an initial cookie acceptance popup.
+
+    This function creates a new instance of the Chrome WebDriver, navigates to the Google Maps URL, and waits briefly to ensure the page loads correctly. It then finds and clicks the 'Accept All' button for cookies using an XPATH selector to handle site permissions before the actual automation tasks can be performed.
+
+    Returns:
+    - selenium.webdriver.chrome.webdriver.WebDriver: A WebDriver instance with the Google Maps page loaded and initial dialogs handled.
+    """
+    
+    driver = webdriver.Chrome()
+    driver.get('https://www.google.com/maps')
+
+    sleep(0.5)
+    driver.find_element(By.XPATH, '//button/span[text()="Zaakceptuj wszystko"]').click()
+    sleep(0.5)
+    
+    return driver
+
+def get_location(
+    driver: selenium.webdriver.chrome.webdriver.WebDriver,
+    address: str) -> list:
+    """
+    Retrieves the geographic coordinates of an address by inputting it into Google Maps and extracting the coordinates from the resulting URL.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): An instance of a Selenium WebDriver, specifically configured for Chrome.
+    - address (str): The address for which geographic coordinates are to be retrieved.
+
+    Returns:
+    - list: A list containing the latitude and longitude as strings.
+    """
+    
+    input_box = driver.find_element(By.XPATH, '//input[@class="searchboxinput xiQnY"]')
+    input_box.clear()
+    input_box.send_keys(address)
+    driver.find_element(By.XPATH, '//button[@id="searchbox-searchbutton"]').click()
+    sleep(4)
+    current_url = driver.current_url
+    
+    geo_location = re.search('@(.*),',str(current_url)).group(1).split(',')
+    
+    return geo_location
+
+def add_geo_location(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Updates a pandas DataFrame with latitude and longitude coordinates for each row by querying Google Maps.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame that contains at least a 'location' column and columns for 'latitude' and 'longitude' which may have missing values.
+
+    Returns:
+    - pd.DataFrame: The original DataFrame updated with latitude and longitude coordinates where they were missing.
+    """
+    
+    driver = initialize_driver()
+    for index, row in df.iterrows():
+        if pd.isna(row['latitude']) and pd.isna(row['longitude']):
+            geo_location = get_location(driver, row['location'])
+            df.at[index, 'latitude'] = float(geo_location[0])
+            df.at[index, 'longitude'] = float(geo_location[1])
+            
+    return df
+
+def fix_missing_locations(
+    folder_path: str = 'data_raw',
+    regex_pattern: str = r'^.*otodom_last7.*\.csv$') -> None:
+    
+    """
+    Processes each CSV file in a specified directory that matches a given regex pattern, 
+    updating missing geographic coordinates in the 'latitude' and 'longitude' columns.
+
+    Parameters:
+    - folder_path (str): The directory path where CSV files are stored. Defaults to 'data_raw'.
+    - regex_pattern (str): A regex pattern to match file names that should be processed. 
+        Defaults to r'^.*otodom_last7.*\.csv$', which targets files typically named according to a convention 
+        used for weekly data dumps from the website Otodom.
+
+    Returns:
+    - None: This function does not return a value but writes directly to the CSV files.
+    """
+    
+    for filename in os.listdir(folder_path):
+        if re.match(regex_pattern, filename):
+            file_path = os.path.join(folder_path, filename)
+            df = pd.read_csv(file_path)
+            df = add_geo_location(df)
+            df.to_csv(file_path, encoding='utf-8', index=False)
+            
+    return None
