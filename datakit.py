@@ -225,6 +225,71 @@ def initialize_morf() -> None:
 
     return None
 
+def parse_floor_values(row: str) -> tuple:
+    """
+    Parses a string containing floor information to extract the specific floor and the total number of floors in the building.
+
+    Parameters:
+    - row (str): The string from which to parse floor information. Can be NaN, a single number, a range in 'X/Y' format, 
+                 or special formats like 'parter' or '>X'.
+
+    Returns:
+    - tuple: A tuple containing two elements:
+        1. floor (int or None): The specific floor number, or None if not determinable.
+        2. building_height (int or None): The total number of floors in the building, or None if not applicable.
+    """
+    
+    if pd.isna(row):
+        return None, None
+    if '/' in row:
+        parts = row.split('/')
+        floor_part = parts[0].strip()
+        if floor_part.isdigit():
+            floor = int(floor_part)
+        elif floor_part == 'parter':
+            floor = 1
+        elif floor_part.startswith('>'):
+            floor = int(floor_part[1:].strip())
+        else:
+            floor = None
+
+        height_part = parts[1].strip()
+        if height_part.isdigit():
+            building_height = int(height_part)
+        else:
+            building_height = None
+    else:
+        floor = int(row) if row.isdigit() else None
+        building_height = None
+    
+    return floor, building_height
+
+def fill_column_with_stat(df: pd.DataFrame, column: str, method: str) -> None:
+    """
+    Fills missing values in the specified column of the DataFrame with a statistical measure
+    (mode, median, or mean) based on the 'method' parameter.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the data.
+    - column (str): The name of the column to fill the missing values in.
+    - method (str): The statistical method to use for filling ('mode', 'median', 'mean').
+
+    Returns:
+    - None: Modifies the DataFrame in place.
+    """
+    if method not in ['mode', 'median', 'mean']:
+        raise ValueError("Method must be 'mode', 'median', or 'mean'")
+
+    if method == 'mode':
+        # Mode can return multiple values, we take the first one
+        fill_value = df[column].mode().iloc[0]
+    elif method == 'median':
+        fill_value = df[column].median()
+    elif method == 'mean':
+        fill_value = df[column].mean()
+
+    df[column].fillna(fill_value, inplace=True)
+
 def scrub_data(
     df : pd.DataFrame,
     subway_locations : dict = {}) -> pd.DataFrame:
@@ -232,7 +297,7 @@ def scrub_data(
     # Copy df
     df = df.copy()
 
-    # Step 1 apply apply get_numbers function to specific columns
+    # Step 1 apply get_numbers function to specific columns
     columns_to_convert = ['rent_price', 'additional_fees', 'area']
     for column in columns_to_convert:
         df[column] = df[column].apply(lambda x: get_numbers(str(x)))
@@ -246,11 +311,14 @@ def scrub_data(
     df['district'] = df['district'].apply(lambda x: replace_characters(str(x)))
 
     # Step 3 calcuate distance to nearest subway and to city center
+    # Drop latitude, longitude columns
     if subway_locations:
         df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude'], subway_locations), axis=1)
 
     df['center_distance'] = df.apply(lambda row: round(hs.haversine(
         (row['latitude'], row['longitude']), (52.2297, 21.0122)),3), axis=1)
+
+    df.drop(['latitude', 'longitude'], axis=1, inplace=True)
     
     # Step 4 Create binary columns from building_type
     df['bt_apartment'] = df['building_type'].str.contains('apartment')
@@ -288,12 +356,14 @@ def scrub_data(
     df.drop(['furnishings'], axis=1, inplace=True)
     
     # Step 7 Determine whether the apartment has air conditioning - create binary column
+    # Drop adv_description column
     air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
 
     df['air_conditioning'] = df.apply(
         lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
             contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
         axis=1)
+    df.drop(['adv_description'], axis=1, inplace=True)
 
     # Step 8 Determine whether the apartment have to be renovated
     # Drop flat_condition column
@@ -314,6 +384,36 @@ def scrub_data(
     # Step 11 Adjust elevator column to binary form
     df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
 
+    # Step 12 Create binary columns from extra_space
+    # Drop extra_space column
+    df['balcony'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'balkon' in x else False)
+    df['terrace'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'taras' in x else False)
+    df['garden'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'ogródek' in x else False)
+    df.drop(['extra_space'], axis=1, inplace=True)
+
+    # Step 13 Adjust parking_space column to binary form
+    df['parking_space'] = ~df.parking_space.isna()
+
+    # Step 14 Create binary columns from year_of_construction
+    # Drop year_of_construction column
+    df['cy_old_building'] = np.where(df['year_of_construction'] <= 1950, True, False)
+    df['cy_new_building'] = np.where(df['year_of_construction'] >= 2000, True, False)
+    df['cy_other'] = np.where(~df['cy_old_building'] & ~df['cy_new_building'], True, False)
+    df.drop(['year_of_construction'], axis=1, inplace=True)
+
+    # Step 15 Adjust floor column; create column building_height
+    # Fill missings with mode
+    df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
+    fill_column_with_stat(df, 'floor', 'mode')
+    fill_column_with_stat(df, 'building_height', 'mode')
+
+    # Step 16 Adjust room_num to int data type
+
+    # Step 17 Create binary columns from district
+    # Drop district column
+
+    # Step 18 Sum up additional_fees to rent_price
+    # Drop rent_price column
 
     return df
 
