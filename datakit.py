@@ -408,13 +408,20 @@ def scrub_data(
     fill_column_with_stat(df, 'building_height', 'mode')
 
     # Step 16 Adjust room_num to int data type
+    df['room_num'] = df['room_num'].astype(int)
 
     # Step 17 Create binary columns from district
     # Drop district column
+    df = pd.get_dummies(df, columns=['district'])
 
     # Step 18 Sum up additional_fees to rent_price
     # Drop rent_price column
+    df['rent_price'] = df['rent_price'] + df['additional_fees']
+    df.drop(['additional_fees'], axis=1, inplace=True)
 
+    # Step 19 Change all columns with a Boolean dtype to an int dtype
+    df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
+    
     return df
 
 def concat_csv_files(
