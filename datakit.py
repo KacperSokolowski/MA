@@ -319,15 +319,8 @@ def scrub_data(
         (row['latitude'], row['longitude']), (52.2297, 21.0122)),3), axis=1)
 
     df.drop(['latitude', 'longitude'], axis=1, inplace=True)
-    
-    # Step 4 Create binary columns from building_type
-    df['bt_apartment'] = df['building_type'].str.contains('apartment')
-    df['bt_tenement'] = df['building_type'].str.contains('kamienica')
-    df['bt_block'] = df['building_type'].str.contains('blok')
-    df['bt_other'] = ~(df['bt_apartment'] | df['bt_tenement'] | df['bt_block'])
-    df.drop(['building_type'], axis=1, inplace=True)
 
-    # Step 5 Determine whether apartment is furnished - create binary column
+    # Step 4 Determine whether apartment is furnished - create binary column
     initialize_nlp()
 
     furnishing_keywords = [
@@ -343,7 +336,7 @@ def scrub_data(
         lambda row: not pd.isna(row['furnishings']) or contains_keywords_nlp(row['adv_description'], furnishing_keywords),
         axis=1)
 
-    # Step 6 Determine whether apartment has a dishwasher - create binary column
+    # Step 5 Determine whether apartment has a dishwasher - create binary column
     # Drop furnishings column
     initialize_morf()
 
@@ -355,7 +348,7 @@ def scrub_data(
         axis=1)
     df.drop(['furnishings'], axis=1, inplace=True)
     
-    # Step 7 Determine whether the apartment has air conditioning - create binary column
+    # Step 6 Determine whether the apartment has air conditioning - create binary column
     # Drop adv_description column
     air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
 
@@ -365,63 +358,80 @@ def scrub_data(
         axis=1)
     df.drop(['adv_description'], axis=1, inplace=True)
 
-    # Step 8 Determine whether the apartment have to be renovated
+    # Step 7 Determine whether the apartment have to be renovated
     # Drop flat_condition column
     df['for_renovation'] = df['flat_condition'].apply(
         lambda x: False if pd.isna(x) or x == 'do zamieszkania' else True)
     df.drop(['flat_condition'], axis=1, inplace=True)
 
-    # Step 9 Create binary columns from advertiser_type
+    # Step 8 Adjust students_allowed column to binary form
+    df['students_allowed'] = df['students_allowed'].apply(lambda x: x == 'tak')
+
+    # Step 9 Adjust elevator column to binary form
+    df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
+
+    # Step 10 Adjust parking_space column to binary form
+    df['parking_space'] = ~df.parking_space.isna()
+
+    # Step 11 Adjust floor column; create column building_height
+    # Fill missings with mode
+    df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
+    fill_column_with_stat(df, 'floor', 'mode')
+    fill_column_with_stat(df, 'building_height', 'mode')
+
+    # Step 12 Adjust room_num to int data type
+    df['room_num'] = df['room_num'].astype(int)
+
+    # Step 13 Sum up additional_fees to rent_price
+    # Drop rent_price column
+    df['rent_price'] = df['rent_price'] + df['additional_fees']
+    df.drop(['additional_fees'], axis=1, inplace=True)
+
+    # Step 14 Change all columns with a Boolean dtype to an int dtype
+    df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
+    
+    return df
+
+def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
+
+    # Copy df
+    df = df.copy()
+
+    # Step 1 Create binary columns from building_type
+    df['bt_apartment'] = df['building_type'].str.contains('apartment')
+    df['bt_tenement'] = df['building_type'].str.contains('kamienica')
+    df['bt_block'] = df['building_type'].str.contains('blok')
+    df['bt_other'] = ~(df['bt_apartment'] | df['bt_tenement'] | df['bt_block'])
+    df.drop(['building_type'], axis=1, inplace=True)
+
+    # Step 2 Create binary columns from advertiser_type
     # Drop advertiser_type column
     df['at_private'] = df.advertiser_type.str.contains('prywatny')
     df['at_agency'] = df.advertiser_type.str.contains('biuro nieruchomości')
     df['at_developer'] = df.advertiser_type.str.contains('deweloper')
     df.drop(['advertiser_type'], axis=1, inplace=True)
 
-    # Step 10 Adjust students_allowed column to binary form
-    df['students_allowed'] = df['students_allowed'].apply(lambda x: x == 'tak')
-
-    # Step 11 Adjust elevator column to binary form
-    df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
-
-    # Step 12 Create binary columns from extra_space
+    # Step 3 Create binary columns from extra_space
     # Drop extra_space column
     df['balcony'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'balkon' in x else False)
     df['terrace'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'taras' in x else False)
     df['garden'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'ogródek' in x else False)
     df.drop(['extra_space'], axis=1, inplace=True)
 
-    # Step 13 Adjust parking_space column to binary form
-    df['parking_space'] = ~df.parking_space.isna()
-
-    # Step 14 Create binary columns from year_of_construction
+    # Step 4 Create binary columns from year_of_construction
     # Drop year_of_construction column
     df['cy_old_building'] = np.where(df['year_of_construction'] <= 1950, True, False)
     df['cy_new_building'] = np.where(df['year_of_construction'] >= 2000, True, False)
     df['cy_other'] = np.where(~df['cy_old_building'] & ~df['cy_new_building'], True, False)
     df.drop(['year_of_construction'], axis=1, inplace=True)
 
-    # Step 15 Adjust floor column; create column building_height
-    # Fill missings with mode
-    df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
-    fill_column_with_stat(df, 'floor', 'mode')
-    fill_column_with_stat(df, 'building_height', 'mode')
-
-    # Step 16 Adjust room_num to int data type
-    df['room_num'] = df['room_num'].astype(int)
-
-    # Step 17 Create binary columns from district
+    # Step 5 Create binary columns from district
     # Drop district column
     df = pd.get_dummies(df, columns=['district'])
 
-    # Step 18 Sum up additional_fees to rent_price
-    # Drop rent_price column
-    df['rent_price'] = df['rent_price'] + df['additional_fees']
-    df.drop(['additional_fees'], axis=1, inplace=True)
-
-    # Step 19 Change all columns with a Boolean dtype to an int dtype
+    # Step 6 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
-    
+
     return df
 
 def concat_csv_files(
