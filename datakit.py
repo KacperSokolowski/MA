@@ -148,7 +148,11 @@ def contains_keywords_nlp(description: str, keywords: list,
     Requires:
     - A loaded natural language processing model (nlp) to tokenize the text and extract sentences and tokens.
     """
-    doc = nlp(description.lower())
+    try:
+        doc = nlp(description.lower())
+    except AttributeError:
+        return False
+    
     contains_keywords = False
     for sentence in doc.sents:
         keywords_presence = [token for token in sentence if token.lemma_ in keywords]
@@ -185,7 +189,11 @@ def contains_keywords_morf(description: str, keywords: list):
     - A morphological analysis tool morfeusz2 (morf) that provides the base form of each token.
     """
 
-    doc = nlp(description.lower())
+    try:
+        doc = nlp(description.lower())
+    except AttributeError:
+        return False
+    
     contains_keywords = False
     for token in doc:
         analysis = morf.analyse(token.text)
@@ -290,6 +298,24 @@ def fill_column_with_stat(df: pd.DataFrame, column: str, method: str) -> None:
 
     df[column].fillna(fill_value, inplace=True)
 
+def remove_duplicates(
+    df: pd.DataFrame,
+    column_name: str = 'link'):
+    """
+    Removes duplicates from the DataFrame based on the specified column name.
+
+    Parameters:
+    - df (pd.DataFrame): The input DataFrame.
+    - column_name (str): The name of the column to check for duplicates.
+
+    Returns:
+    - pd.DataFrame: The DataFrame with duplicates removed.
+    """
+    df = df.copy()
+    df = df.drop_duplicates(subset=column_name)
+
+    return df
+
 def scrub_data(
     df : pd.DataFrame,
     subway_locations : dict = {}) -> pd.DataFrame:
@@ -298,7 +324,7 @@ def scrub_data(
     df = df.copy()
 
     # Step 1 apply get_numbers function to specific columns
-    columns_to_convert = ['rent_price', 'additional_fees', 'area']
+    columns_to_convert = ['rent_price', 'additional_fees', 'area', 'room_num']
     for column in columns_to_convert:
         df[column] = df[column].apply(lambda x: get_numbers(str(x)))
 
@@ -311,14 +337,11 @@ def scrub_data(
     df['district'] = df['district'].apply(lambda x: replace_characters(str(x)))
 
     # Step 3 calcuate distance to nearest subway and to city center
-    # Drop latitude, longitude columns
     if subway_locations:
         df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude'], subway_locations), axis=1)
 
     df['center_distance'] = df.apply(lambda row: round(hs.haversine(
         (row['latitude'], row['longitude']), (52.2297, 21.0122)),3), axis=1)
-
-    df.drop(['latitude', 'longitude'], axis=1, inplace=True)
 
     # Step 4 Determine whether apartment is furnished - create binary column
     initialize_nlp()
@@ -374,21 +397,24 @@ def scrub_data(
     df['parking_space'] = ~df.parking_space.isna()
 
     # Step 11 Adjust floor column; create column building_height
-    # Fill missings with mode
     df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
-    fill_column_with_stat(df, 'floor', 'mode')
-    fill_column_with_stat(df, 'building_height', 'mode')
 
     # Step 12 Adjust room_num to int data type
     df['room_num'] = df['room_num'].astype(int)
 
     # Step 13 Sum up additional_fees to rent_price
     # Drop rent_price column
-    df['rent_price'] = df['rent_price'] + df['additional_fees']
+    df['rent_price'] = df.apply(
+    lambda row: row['rent_price'] + row['additional_fees'] if not pd.isna(row['additional_fees']) else row['rent_price'], 
+    axis=1)
+
     df.drop(['additional_fees'], axis=1, inplace=True)
 
     # Step 14 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
+
+    # Step 15 Drop link column
+    df.drop(['link'], axis=1, inplace=True)
     
     return df
 
@@ -431,6 +457,13 @@ def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
 
     # Step 6 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
+
+    # Step 7 Drop latitude, longitude columns
+    df.drop(['latitude', 'longitude'], axis=1, inplace=True)
+
+    # Step 8 Fill missing values
+    fill_column_with_stat(df, 'floor', 'mode')
+    fill_column_with_stat(df, 'building_height', 'mode')
 
     return df
 
