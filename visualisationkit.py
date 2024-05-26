@@ -62,14 +62,18 @@ def plot_heat_map_district(
     
     return None
 
-def plot_heat_map_grid_cells(df, plot_type='count'):
+def plot_heat_map_grid_cells(
+    df: pd.DataFrame,
+    plot_type: str = 'count',
+    warsaw_shape_pth: str = 'geographic_data/commons_poland/Gminy.shp',
+    grid_cells_shape_pth: str = 'geographic_data/GRID_NSP2021_RES/GRID_NSP2021_RES.shp'):
     
     # Load shapefile with warsaw borders
-    warsaw = gpd.read_file('geographic_data/commons_poland/Gminy.shp')
+    warsaw = gpd.read_file(warsaw_shape_pth)
     warsaw = warsaw[warsaw.JPT_NAZWA_.eq('Warszawa')]
     
     # Load the shapefile with grid cells
-    grid_cells = gpd.read_file('geographic_data/GRID_NSP2021_RES/GRID_NSP2021_RES.shp')
+    grid_cells = gpd.read_file(grid_cells_shape_pth)
     grid_cells = grid_cells.to_crs('EPSG:4258')
     
     # Join grids with warsaw borders
