@@ -93,8 +93,39 @@ def replace_characters(input_string : str) -> str:
         input_string = input_string.replace(search, replace)
     return input_string
 
-def nearest_distance(lat: float, lon: float,
-                     locations : dict) -> float:
+def nearest_distance(
+    lat: float, lon: float,
+    locations : dict = {
+        'Plac Wilsona': {'Latitude': 52.26902, 'Longitude': 20.985},
+        'Wilanowska': {'Latitude': 52.18098, 'Longitude': 21.02364},
+        'Centrum': {'Latitude': 52.23055, 'Longitude': 21.01091},
+        'Stokłosy': {'Latitude': 52.15583, 'Longitude': 21.0347},
+        'Wierzbno': {'Latitude': 52.18932, 'Longitude': 21.01726},
+        'Pole Mokotowskie': {'Latitude': 52.2079, 'Longitude': 21.00837},
+        'Swiętokrzyska': {'Latitude': 52.23499, 'Longitude': 21.00835},
+        'Ratusz': {'Latitude': 52.24476, 'Longitude': 21.00082},
+        'Marymont': {'Latitude': 52.27178, 'Longitude': 20.97232},
+        'Imielin': {'Latitude': 52.14952, 'Longitude': 21.04543},
+        'Kabaty': {'Latitude': 52.13109, 'Longitude': 21.06604},
+        'Ursynów': {'Latitude': 52.16217, 'Longitude': 21.02858},
+        'Natolin': {'Latitude': 52.14033, 'Longitude': 21.05776},
+        'Bemowo': {'Latitude': 52.2393879, 'Longitude': 20.9175868},
+        'Ulrychów': {'Latitude': 52.2402211, 'Longitude': 20.9286984},
+        'Księcia Janusza': {'Latitude': 52.238989, 'Longitude': 20.9413589},
+        'Młynów': {'Latitude': 52.2370368, 'Longitude': 20.9582514},
+        'Płocka': {'Latitude': 52.2331322, 'Longitude': 20.9672229},
+        'Rondo Daszyńskiego': {'Latitude': 52.2302503, 'Longitude': 20.9812049},
+        'Rondo ONZ': {'Latitude': 52.2326673, 'Longitude': 20.9943419},
+        'Nowy Świat Uniwersytet': {'Latitude': 52.2372522, 'Longitude': 21.0163951},
+        'Centrum Nauki Kopernik': {'Latitude': 52.2405898, 'Longitude': 21.029495},
+        'Stadion Narodowy': {'Latitude': 52.2468026, 'Longitude': 21.0437104},
+        'Wileński': {'Latitude': 52.2552165, 'Longitude': 21.0373375},
+        'Szwedzka': {'Latitude': 52.2658294, 'Longitude': 21.0477777},
+        'Targówek+Mieszkaniowy': {'Latitude': 52.278611, 'Longitude': 21.0478345},
+        'Zacisze': {'Latitude': 52.278611, 'Longitude': 21.0478345},
+        'Kondratowicza': {'Latitude': 52.2844033, 'Longitude': 21.0489269},
+        'Bródno': {'Latitude': 52.2844033, 'Longitude': 21.0489269}              
+    }) -> float:
     """
     Calculates and returns the minimum distance from a given latitude and longitude to a set of predefined locations.
 
@@ -106,6 +137,7 @@ def nearest_distance(lat: float, lon: float,
     - lat (float): The latitude of the point from which the distance is to be calculated.
     - lon (float): The longitude of the point from which the distance is to be calculated.
     - locations (dict): A dictionary where keys are points names and values are dictionaries with keys 'Latitude' and 'Longitude' representing each point's location.
+        Defaults to calcuates distance to nearest Warsaw subway.
 
     Returns:
     - int: The shortest distance to the nearest location, rounded to to 3 decimal points.
@@ -339,6 +371,8 @@ def scrub_data(
     # Step 3 calcuate distance to nearest subway and to city center
     if subway_locations:
         df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude'], subway_locations), axis=1)
+    else:
+        df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude']), axis=1)
 
     df['center_distance'] = df.apply(lambda row: round(hs.haversine(
         (row['latitude'], row['longitude']), (52.2297, 21.0122)),3), axis=1)
@@ -560,7 +594,6 @@ def add_geo_location(df: pd.DataFrame) -> pd.DataFrame:
 def fix_missing_locations(
     folder_path: str = 'data_raw',
     regex_pattern: str = r'^.*otodom_last7.*\.csv$') -> None:
-    
     """
     Processes each CSV file in a specified directory that matches a given regex pattern, 
     updating missing geographic coordinates in the 'latitude' and 'longitude' columns.
@@ -583,3 +616,57 @@ def fix_missing_locations(
             df.to_csv(file_path, encoding='utf-8', index=False)
             
     return None
+
+def translate_column(
+    df: pd.DataFrame,
+    column: str,
+    translation_dict: dict) -> pd.DataFrame:
+    """
+    Translates the values in a specified column of a DataFrame based on a provided dictionary.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the column to be translated.
+    - column (str): The name of the column whose values are to be translated.
+    - translation_dict (dict): A dictionary where keys are the original values 
+      and values are the translated values.
+
+    Returns:
+    - pd.DataFrame: The DataFrame with the translated column values.
+    """
+    
+    df[column] = df[column].map(translation_dict)
+    return df
+
+def translate_df(
+        df: pd.DataFrame,
+        advertiser_type_translation: dict = {
+            'prywatny': 'private',
+            'biuro nieruchomości': 'real estate agency',
+            'deweloper': 'developer'},
+        building_type_translation: dict = {
+            'apartamentowiec': 'apartment building',
+            'blok': 'block of flats',
+            'kamienica': 'tenement house',
+            'dom wolnostojący': 'detached house',
+            'szeregowiec': 'terraced house',
+            'plomba': 'infill building',
+            'loft': 'loft'
+        }) -> pd.DataFrame:
+    """
+    Translates values in 'advertiser_type' and 'building_type' columns of a DataFrame using provided dictionaries.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing the columns to be translated.
+    - advertiser_type_translation (dict, optional): A dictionary for translating 'advertiser_type' values. 
+      Defaults to mapping Polish terms to English equivalents.
+    - building_type_translation (dict, optional): A dictionary for translating 'building_type' values. 
+      Defaults to mapping Polish terms to English equivalents.
+
+    Returns:
+    - pd.DataFrame: The DataFrame with translated 'advertiser_type' and 'building_type' column values.
+    """
+
+    df = translate_column(df, 'building_type', building_type_translation)
+    df = translate_column(df, 'advertiser_type', advertiser_type_translation)
+
+    return df
