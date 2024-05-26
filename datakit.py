@@ -377,7 +377,7 @@ def scrub_data(
     12. Converts the 'room_num' column to an integer data type.
     13. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
     14. Converts all Boolean columns to integer data types.
-    15. Drops the 'additional_information', 'extra_space', 'link' column.
+    15. Drops the 'additional_information', 'link' column.
     """
 
     # Copy df
@@ -476,7 +476,7 @@ def scrub_data(
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
 
     # Step 15 Drop unnecessary columns
-    df.drop(['additional_information', 'extra_space', 'link'], axis=1, inplace=True)
+    df.drop(['additional_information', 'link'], axis=1, inplace=True)
     
     return df
 
@@ -486,15 +486,17 @@ def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     # Step 1 Create binary columns from building_type
-    df['bt_apartment'] = df['building_type'].str.contains('apartment')
-    df['bt_tenement'] = df['building_type'].str.contains('kamienica')
-    df['bt_block'] = df['building_type'].str.contains('blok')
-    df['bt_other'] = ~(df['bt_apartment'] | df['bt_tenement'] | df['bt_block'])
+    df['bt_apartment'] = df['building_type'].fillna('').str.contains('apartamentowiec')
+    df['bt_tenement'] = df['building_type'].fillna('').str.contains('kamienica')
+    # Base_level:
+    # df['bt_block'] = df['building_type'].str.contains('blok')
+    df['bt_other'] = ~df['building_type'].fillna('').isin(['apartamentowiec', 'kamienica', 'blok'])
     df.drop(['building_type'], axis=1, inplace=True)
 
     # Step 2 Create binary columns from advertiser_type
     # Drop advertiser_type column
-    df['at_private'] = df.advertiser_type.str.contains('prywatny')
+    # Base_level:
+    # df['at_private'] = df.advertiser_type.str.contains('prywatny')
     df['at_agency'] = df.advertiser_type.str.contains('biuro nieruchomości')
     df['at_developer'] = df.advertiser_type.str.contains('deweloper')
     df.drop(['advertiser_type'], axis=1, inplace=True)
@@ -510,12 +512,15 @@ def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
     # Drop year_of_construction column
     df['cy_old_building'] = np.where(df['year_of_construction'] <= 1950, True, False)
     df['cy_new_building'] = np.where(df['year_of_construction'] >= 2000, True, False)
-    df['cy_other'] = np.where(~df['cy_old_building'] & ~df['cy_new_building'], True, False)
+    # Base level:
+    # df['cy_other'] = np.where(~df['cy_old_building'] & ~df['cy_new_building'], True, False)
     df.drop(['year_of_construction'], axis=1, inplace=True)
 
     # Step 5 Create binary columns from district
     # Drop district column
     df = pd.get_dummies(df, columns=['district'])
+    # Base_level:
+    df.drop(['district_Mokotow'], axis=1, inplace=True)
 
     # Step 6 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
@@ -524,8 +529,8 @@ def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
     df.drop(['latitude', 'longitude'], axis=1, inplace=True)
 
     # Step 8 Fill missing values
-    fill_column_with_stat(df, 'floor', 'mode')
-    fill_column_with_stat(df, 'building_height', 'mode')
+    fill_column_with_stat(df, 'floor', 'median')
+    fill_column_with_stat(df, 'building_height', 'median')
 
     return df
 
