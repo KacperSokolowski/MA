@@ -317,8 +317,8 @@ def remove_duplicates(
     return df
 
 def scrub_data(
-    df : pd.DataFrame,
-    subway_locations : dict = {}) -> pd.DataFrame:
+    df: pd.DataFrame,
+    subway_locations: dict = {}) -> pd.DataFrame:
 
     # Copy df
     df = df.copy()
