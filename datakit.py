@@ -351,6 +351,34 @@ def remove_duplicates(
 def scrub_data(
     df: pd.DataFrame,
     subway_locations: dict = {}) -> pd.DataFrame:
+    """
+    Cleans and processes a DataFrame containing apartment rental data.
+
+    Parameters:
+    - df (pd.DataFrame): The DataFrame containing apartment data to be cleaned.
+    - subway_locations (dict, optional): A dictionary containing subway locations. If provided, it is used to calculate
+      the distance to the nearest subway station. Defaults to an empty dictionary.
+
+    Returns:
+    - pd.DataFrame: The cleaned and processed DataFrame.
+
+    Steps:
+    1. Converts specified columns to numerical values using the `get_numbers` function.
+    2. Extracts district names from the 'location' column, removes observations outside Warsaw, and removes Polish characters from district names.
+    3. Calculates distances to the nearest subway station and to the city center.
+    4. Determines whether the apartment is furnished.
+    5. Determines whether the apartment has a dishwasher.
+    6. Determines whether the apartment has air conditioning.
+    7. Determines whether the apartment needs renovation.
+    8. Adjusts the 'students_allowed' column to a binary form.
+    9. Adjusts the 'elevator' column to a binary form.
+    10. Adjusts the 'parking_space' column to a binary form based on the presence of non-null values.
+    11. Parses the 'floor' column to create separate 'floor' and 'building_height' columns.
+    12. Converts the 'room_num' column to an integer data type.
+    13. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
+    14. Converts all Boolean columns to integer data types.
+    15. Drops the 'link' column.
+    """
 
     # Copy df
     df = df.copy()
