@@ -377,7 +377,7 @@ def scrub_data(
     12. Converts the 'room_num' column to an integer data type.
     13. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
     14. Converts all Boolean columns to integer data types.
-    15. Drops the 'link' column.
+    15. Drops the 'additional_information', 'extra_space', 'link' column.
     """
 
     # Copy df
@@ -475,8 +475,8 @@ def scrub_data(
     # Step 14 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
 
-    # Step 15 Drop link column
-    df.drop(['link'], axis=1, inplace=True)
+    # Step 15 Drop unnecessary columns
+    df.drop(['additional_information', 'extra_space', 'link'], axis=1, inplace=True)
     
     return df
 
@@ -588,8 +588,10 @@ def get_location(
     - list: A list containing the latitude and longitude as strings.
     """
     
-    input_box = driver.find_element(By.XPATH, '//input[@class="searchboxinput xiQnY"]')
+    sleep(2)
+    input_box = driver.find_element(By.XPATH, '//input[@id="searchboxinput"]')
     input_box.clear()
+    sleep(2)
     input_box.send_keys(address)
     driver.find_element(By.XPATH, '//button[@id="searchbox-searchbutton"]').click()
     sleep(4)
@@ -610,7 +612,11 @@ def add_geo_location(df: pd.DataFrame) -> pd.DataFrame:
     - pd.DataFrame: The original DataFrame updated with latitude and longitude coordinates where they were missing.
     """
     
+    if not df[['latitude', 'longitude']].isnull().values.any():
+        return df
+    
     driver = initialize_driver()
+    sleep(1)
     for index, row in df.iterrows():
         if pd.isna(row['latitude']) and pd.isna(row['longitude']):
             geo_location = get_location(driver, row['location'])
