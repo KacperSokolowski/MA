@@ -107,57 +107,6 @@ def get_announcements_links(
     announcements_links = list(dict.fromkeys(announcements_links))
     return announcements_links
 
-
-def get_text_from_aria_label(
-    driver : selenium.webdriver.chrome.webdriver.WebDriver,
-    label_name : str,
-    tag_name : str = 'div') -> str:
-
-    """
-    Retrieves the text content of an element identified by an aria label and tag name.
-
-    Parameters:
-    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the web page.
-    - label_name (str): The value of the `aria-label` attribute of the target element.
-    - tag_name (str, optional): The tag name of the target element. Defaults to 'div'.
-
-    Returns:
-    - str or None: The text content of the found element, or `None` if the element is not found.
-    """
-
-    try:
-        text = driver.find_element(
-            By.XPATH, f'//{tag_name}[@aria-label="{label_name}"]').text
-    except NoSuchElementException:
-        text = None
-
-    return text
-
-
-def get_text_from_data_testid(
-    driver : selenium.webdriver.chrome.webdriver.WebDriver,
-    label_name : str,
-    tag_name : str = 'div') -> str:
-    """
-    Retrieves the text content of an element identified by data-testid element and tag name.
-
-    Parameters:
-    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the web page.
-    - label_name (str): The value of the `aria-label` attribute of the target element.
-    - tag_name (str, optional): The tag name of the target element. Defaults to 'div'.
-
-    Returns:
-    - str or None: The text content of the found element, or `None` if the element is not found.
-    """
-
-    try:
-        text = driver.find_element(
-            By.XPATH, f'//{tag_name}[@data-testid="table-value-{label_name}"]').text
-    except NoSuchElementException:
-        text = None
-    
-    return text if text != 'brak informacji' else None
-
 def get_location_from_map(
     driver : selenium.webdriver.chrome.webdriver.WebDriver) -> dict:
     """
@@ -212,7 +161,8 @@ def get_adv_description(
     Retrieves the full advertisement description from a web page by clicking a button to expand the text if necessary.
 
     Args:
-    - driver (selenium.webdriver.chrome.webdriver.WebDriver): A Selenium WebDriver instance for Chrome, used to control the browser.
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): A Selenium WebDriver instance for Chrome, used to control 
+    the browser.
 
     Returns:
     - str: The full text of the advertisement description,
@@ -228,7 +178,7 @@ def get_adv_description(
         pass
 
     if button is not None:
-        desc_location = driver.find_element(By.XPATH, f"//h2[contains(text(), 'Opis')]")
+        desc_location = driver.find_element(By.XPATH, f"//h4[contains(text(), 'Opis')]")
         desc_location.location_once_scrolled_into_view
         button.click()
 
@@ -240,48 +190,156 @@ def get_adv_description(
     
     return adv_description
 
+def get_text_from_class(driver, class_name):
+    """
+    Retrieves the text content of an element identified by its class name.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the 
+    web page.
+    - class_name (str): The class name of the target element.
+
+    Returns:
+    - str or None: The text content of the found element, or `None` if the element is not found.
+    """
+
+    try:
+        text = driver.find_element(By.XPATH, f"//div[@class='{class_name}']").text
+    except NoSuchElementException:
+        text = None
+    return text
+
+def get_text_from_main_table(driver, label_name):
+    """
+    Retrieves the text content of a specific element within the main table based on a label name.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the 
+    web page.
+    - label_name (str): The text contained within a `p` element used to identify the target element.
+
+    Returns:
+    - str or None: The text content of the found element, or `None` if the element is not found 
+      or if the content is equal to 'brak informacji'.
+    """
+
+    try:
+        xpath = (
+            "//div[h4[contains(text(), 'Mieszkanie na wynajem')]]"
+            f"/div/div[p[contains(text(), '{label_name}')]]/p[2]"
+        )
+        value_element = driver.find_element(By.XPATH, xpath)
+        text = value_element.text
+    except NoSuchElementException:
+        text = None
+    return text if text != 'brak informacji' else None
+
+def get_text_from_supp_table(driver, table_name, label_name):
+    """
+    Retrieves the text content of a specific element within a supplementary table based on the table name and label name.
+
+    Parameters:
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact
+    with the web page.
+    - table_name (str): The text contained within the `header/p` element used to identify the supplementary table.
+    - label_name (str): The text contained within a `p` element used to locate the target element within the table.
+
+    Returns:
+    - str or None: The text content of the found element, or `None` if the element is not found 
+      or if the content is equal to 'brak informacji'.
+    """
+
+    try:
+        xpath = (
+            f"//div[header/p[contains(text(), '{table_name}')]]"
+            f"/div/div/div[p[contains(text(), '{label_name}')]]/p[2]"
+        )
+        value_element = driver.find_element(By.XPATH, xpath)
+        text = value_element.text
+    except NoSuchElementException:
+        text = None
+    return text if text != 'brak informacji' else None
+
 def scrape_single_announcement(
-    driver : selenium.webdriver.chrome.webdriver.WebDriver) -> dict:
+    driver : selenium.webdriver.chrome.webdriver.WebDriver,
+    announcements_link : str,
+    sleep_length : float = 1) -> dict:
     """
     Scrapes data from a single apartment for rent announcement on a webpage using a given web driver.
 
     Parameters:
-    driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance to interact with the webpage.
+    - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance to interact with the webpage.
+    - announcements_link (list): URL to individual announcements to be scraped.
+    - sleep_length (float, optional): Time in seconds to pause between actions to simulate human behavior and ensure
+    page content is loaded. Defaults to 1.
 
     Returns:
     dict: A dictionary containing scraped data of various attributes of the rent announcement.
     """
-    geo_location = get_location_from_map(driver)
+    
+    driver.get(announcements_link)
+    sleep(sleep_length)
+    
+    try:
+        expired = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
+        return None
+    except NoSuchElementException:
+        pass
+    
     scrape_dict = {
-        # Price
-        'rent_price' : get_text_from_aria_label(driver, 'Cena', 'strong'),
-        'additional_fees' : get_text_from_data_testid(driver, 'rent'),
-        # Apartment attributes
-        'location' : get_text_from_aria_label(driver, 'Adres', 'a'),
-        'area' : get_text_from_data_testid(driver, 'area'),
-        'room_num' : get_text_from_data_testid(driver, 'rooms_num'),
-        'floor' : get_text_from_data_testid(driver, 'floor'),
-        'building_type' : get_text_from_data_testid(driver, 'building_type'),
-        'extra_space' : get_text_from_data_testid(driver, 'outdoor'),
-        'flat_condition' : get_text_from_data_testid(driver, 'construction_status'),
-        'advertiser_type' : get_text_from_data_testid(driver, 'advertiser_type'),
-        'students_allowed' : get_text_from_data_testid(driver, 'rent_to_students'),
-        'furnishings' : get_text_from_data_testid(driver, 'equipment_types'),
-        'elevator' : get_text_from_data_testid(driver, 'lift'),
-        'parking_space' : get_text_from_data_testid(driver, 'car'),
-        'year_of_construction' : get_text_from_data_testid(driver, 'build_year'),
-        'additional_information' : get_text_from_data_testid(driver, 'extras_types'),
-        'latitude' : geo_location['latitude'],
-        'longitude' : geo_location['longitude'],
-        'approximate_coordinates' : geo_location['approximate'],
-        'adv_description' : get_adv_description(driver)}
+        'rent_price' : get_text_from_class(driver, 'css-1ifvn3m ef3kcx02'),
+        'area_room_num' : get_text_from_class(driver, 'css-58w8b7 eezlw8k0'),
+        'floor': get_text_from_main_table(driver, 'Piętro'),
+        'ogrzewanie':get_text_from_main_table(driver, 'Ogrzewanie'),
+        'flat_condition': get_text_from_main_table(driver, 'Stan wykończenia'),
+        'available_from': get_text_from_main_table(driver, 'Dostępne od'),
+        'deposit': get_text_from_main_table(driver, 'Kaucja'),
+        'advertiser_type': get_text_from_main_table(driver, 'Typ ogłoszeniodawcy'),
+        'additional_information': get_text_from_main_table(driver, 'Informacje dodatkowe'),
+        'location': get_text_from_class(driver, 'css-70qvj9 e42rcgs0')
+    }
+    
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    sleep(sleep_length/2)
+    try:
+        map_element = driver.find_element(By.ID, 'map')
+    except NoSuchElementException:
+        pass
+    map_element.location_once_scrolled_into_view
+    sleep(sleep_length)
+    geo_location = get_location_from_map(driver)
+    scrape_dict['latitude'] = geo_location['latitude']
+    scrape_dict['longitude'] = geo_location['longitude']
+    scrape_dict['approximate_coordinates'] = geo_location['approximate']
+    
+    try:
+        driver.find_element(By.XPATH, "//header[@role='button']//p[text()='Budynek i materiały']").click()
+    except NoSuchElementException:
+        pass
+    sleep(sleep_length/2)
+    scrape_dict['year_of_construction'] = get_text_from_supp_table(driver, 'Budynek i materiały', 'Rok budowy')
+    scrape_dict['elevator'] = get_text_from_supp_table(driver, 'Budynek i materiały', 'Winda')
+    scrape_dict['building_type'] = get_text_from_supp_table(driver, 'Budynek i materiały', 'Rodzaj zabudowy')
+    scrape_dict['security'] = get_text_from_supp_table(driver, 'Budynek i materiały', 'Bezpieczeństwo')
+    
+    try:
+        driver.find_element(By.XPATH, "//header[@role='button']//p[text()='Wyposażenie']").click()   
+    except NoSuchElementException:
+        pass
+    sleep(sleep_length/2)
+    scrape_dict['equipment'] = get_text_from_supp_table(driver, 'Wyposażenie', 'Wyposażenie')
+    scrape_dict['utilities'] = get_text_from_supp_table(driver, 'Wyposażenie', 'Media')
+    scrape_dict['safeguards'] = get_text_from_supp_table(driver, 'Wyposażenie', 'Zabezpieczenia')
+    
+    scrape_dict['announcement_date'] = get_text_from_class(driver, 'css-gg4vpm e2md81j0'),
+    scrape_dict['adv_description'] = get_adv_description(driver)
     
     return scrape_dict
 
 def scrape_otodom_announcements(
     driver : selenium.webdriver.chrome.webdriver.WebDriver,
     announcements_links : list,
-    sleep_length : float = 0.5,
+    sleep_length : float = 1,
     save_as_csv : bool = True,
     csv_file_name_prefix : str = 'otodom',
     csv_destination_path : str = 'data_raw') -> pd.DataFrame:
@@ -306,20 +364,7 @@ def scrape_otodom_announcements(
 
     # Loop through scraped announcements links
     for i in announcements_links:
-        driver.get(i)
-        sleep(sleep_length)
-        # Load whole page
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        sleep(sleep_length)
-        # Load map
-        try:
-            map_element = driver.find_element(By.ID, 'map')
-        except NoSuchElementException:
-            continue
-        map_element.location_once_scrolled_into_view
-        sleep(sleep_length)
-        # Scrape single page
-        single_announcement = scrape_single_announcement(driver)
+        single_announcement = scrape_single_announcement(driver, i, sleep_length)
         single_announcement['link'] = i
         scraped_dicts.append(single_announcement)
 
@@ -347,7 +392,7 @@ def run_otodom_scraper(
     add_filtered_links : False,
     filtered_links_dict : dict = {},
     return_df : bool = True,
-    sleep_length : float = 0.5,
+    sleep_length : float = 1,
     save_as_csv : bool = True,
     csv_file_name_prefix : str = 'otodom',
     csv_destination_path : str = 'data_raw') -> pd.DataFrame:

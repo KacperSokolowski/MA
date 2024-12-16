@@ -369,15 +369,16 @@ def scrub_data(
     4. Determines whether the apartment is furnished.
     5. Determines whether the apartment has a dishwasher.
     6. Determines whether the apartment has air conditioning.
-    7. Determines whether the apartment needs renovation.
-    8. Adjusts the 'students_allowed' column to a binary form.
-    9. Adjusts the 'elevator' column to a binary form.
-    10. Adjusts the 'parking_space' column to a binary form based on the presence of non-null values.
-    11. Parses the 'floor' column to create separate 'floor' and 'building_height' columns.
-    12. Converts the 'room_num' column to an integer data type.
-    13. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
-    14. Converts all Boolean columns to integer data types.
-    15. Drops the 'additional_information', 'link' column.
+    7. Determines whether the apartment description indicates premium class.
+    8. Determines whether the apartment needs renovation.
+    9. Adjusts the 'students_allowed' column to a binary form.
+    10. Adjusts the 'elevator' column to a binary form.
+    11. Adjusts the 'parking_space' column to a binary form based on the presence of non-null values.
+    12. Parses the 'floor' column to create separate 'floor' and 'building_height' columns.
+    13. Converts the 'room_num' column to an integer data type.
+    14. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
+    15. Converts all Boolean columns to integer data types.
+    16. Drops the 'additional_information', 'link' column.
     """
 
     # Copy df
@@ -434,37 +435,45 @@ def scrub_data(
     df.drop(['furnishings'], axis=1, inplace=True)
     
     # Step 6 Determine whether the apartment has air conditioning - create binary column
-    # Drop adv_description column
     air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
 
     df['air_conditioning'] = df.apply(
         lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
             contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
         axis=1)
+    
+    # Step 7 Determines whether the apartment description indicates premium class.
+    # Drop adv_description column
+    premium_keywords = ['luksusowy', 'ekskluzywny', 'nowoczesny', 'prestigowy', 'prestiżowy', 'elitarny', 'elegancki', 'wyrafinować', 'designerski', 'premium', 'stylowy']
+
+    df['premium_class'] = df.apply(
+        lambda row: contains_keywords_morf(row['adv_description'], premium_keywords),
+        axis=1)
+
     df.drop(['adv_description'], axis=1, inplace=True)
 
-    # Step 7 Determine whether the apartment have to be renovated
+    # Step 8 Determine whether the apartment have to be renovated
     # Drop flat_condition column
     df['for_renovation'] = df['flat_condition'].apply(
         lambda x: False if pd.isna(x) or x == 'do zamieszkania' else True)
     df.drop(['flat_condition'], axis=1, inplace=True)
 
-    # Step 8 Adjust students_allowed column to binary form
+    # Step 9 Adjust students_allowed column to binary form
     df['students_allowed'] = df['students_allowed'].apply(lambda x: x == 'tak')
 
-    # Step 9 Adjust elevator column to binary form
+    # Step 10 Adjust elevator column to binary form
     df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
 
-    # Step 10 Adjust parking_space column to binary form
+    # Step 11 Adjust parking_space column to binary form
     df['parking_space'] = ~df.parking_space.isna()
 
-    # Step 11 Adjust floor column; create column building_height
+    # Step 12 Adjust floor column; create column building_height
     df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
 
-    # Step 12 Adjust room_num to int data type
+    # Step 13 Adjust room_num to int data type
     df['room_num'] = df['room_num'].astype(int)
 
-    # Step 13 Sum up additional_fees to rent_price
+    # Step 14 Sum up additional_fees to rent_price
     # Drop rent_price column
     df['rent_price'] = df.apply(
     lambda row: row['rent_price'] + row['additional_fees'] if not pd.isna(row['additional_fees']) else row['rent_price'], 
@@ -472,10 +481,10 @@ def scrub_data(
 
     df.drop(['additional_fees'], axis=1, inplace=True)
 
-    # Step 14 Change all columns with a Boolean dtype to an int dtype
+    # Step 15 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
 
-    # Step 15 Drop unnecessary columns
+    # Step 16 Drop unnecessary columns
     df.drop(['additional_information', 'link'], axis=1, inplace=True)
     
     return df
@@ -520,7 +529,7 @@ def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
     # Drop district column
     df = pd.get_dummies(df, columns=['district'])
     # Base_level:
-    df.drop(['district_Mokotow'], axis=1, inplace=True)
+    # df.drop(['district_Mokotow'], axis=1, inplace=True)
 
     # Step 6 Change all columns with a Boolean dtype to an int dtype
     df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
