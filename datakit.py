@@ -1,42 +1,4 @@
 import pandas as pd
-import numpy as np
-import os
-import re
-import haversine as hs
-import spacy
-import morfeusz2
-import selenium
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from time import sleep
-
-def get_numbers(input_string : str) -> float:
-    """
-    Extracts numbers from a given string and returns them as a float.
-
-    This function iterates through each character in the input string, extracting digits and commas.
-    Commas are then replaced with dots to conform to the float format. The result is converted to a float.
-
-    Parameters:
-    - input_string (str): The string from which numbers are to be extracted.
-
-    Returns:
-    - float: The extracted number in float format, with commas replaced by dots.
-
-    Note:
-    The function assumes there's only one numeric value in the input string and that commas are used as decimal separators.
-    """
-
-    extract = ""
-    for s in input_string:
-        if (s.isdigit() or s == ",") and s!= '²':
-            extract = extract + s
-    try:
-        extract = float(extract.replace(',', '.'))
-    except ValueError:
-        extract = np.nan
-    
-    return(extract)
 
 def find_warsaw_district(input_string) -> str:
     """
@@ -70,651 +32,73 @@ def find_warsaw_district(input_string) -> str:
 
     return None
 
-def replace_characters(input_string : str) -> str:
+def extract_ad_dates(row):
     """
-    Replaces specific Polish characters and hyphens in a given string with their ASCII equivalents or alternatives.
+    Extracts and returns the last update date and added date from an advertisement's metadata.
 
-    This function maps Polish diacritic characters to their non-diacritic counterparts and replaces hyphens with underscores.
-    It iterates over a predefined set of character replacements and applies these transformations to the input string.
+    The function processes a given row from a DataFrame, which contains an 'announcement_date' field
+    with metadata formatted as strings separated by newline characters. It identifies and extracts 
+    lines containing 'Aktualizacja:' (last update) and 'Dodano:' (added date). If either date is not found, 
+    the corresponding return value is None.
 
     Parameters:
-    - input_string (str): The string to be transformed.
+    - row (pd.Series): A row from a DataFrame containing an 'announcement_date' field.
 
     Returns:
-    - str: The transformed string with specified characters replaced.
+    - pd.Series: A series containing two elements:
+        - The last update date as a string (or None if not available).
+        - The added date as a string (or None if not available).
     """
+    # Extract the 'announcement_date' field from the row
+    ad_info = row['announcement_date']
     
-    replacements = {
-        'ł': 'l', 'Ł': 'L', 'ą': 'a', 'Ą': 'A', 'ć': 'c', 'Ć': 'C', 'ę': 'e', 'Ę': 'E',
-        'ń': 'n', 'Ń': 'N', 'ó': 'o', 'Ó': 'O', 'ś': 's', 'Ś': 'S', 'ż': 'z', 'Ż': 'Z',
-        'ź': 'z', 'Ź': 'Z', '-': '_'
-    }
-    for search, replace in replacements.items():
-        input_string = input_string.replace(search, replace)
-    return input_string
-
-def nearest_distance(
-    lat: float, lon: float,
-    locations : dict = {
-        'Plac Wilsona': {'Latitude': 52.26902, 'Longitude': 20.985},
-        'Wilanowska': {'Latitude': 52.18098, 'Longitude': 21.02364},
-        'Centrum': {'Latitude': 52.23055, 'Longitude': 21.01091},
-        'Stokłosy': {'Latitude': 52.15583, 'Longitude': 21.0347},
-        'Wierzbno': {'Latitude': 52.18932, 'Longitude': 21.01726},
-        'Pole Mokotowskie': {'Latitude': 52.2079, 'Longitude': 21.00837},
-        'Swiętokrzyska': {'Latitude': 52.23499, 'Longitude': 21.00835},
-        'Ratusz': {'Latitude': 52.24476, 'Longitude': 21.00082},
-        'Marymont': {'Latitude': 52.27178, 'Longitude': 20.97232},
-        'Imielin': {'Latitude': 52.14952, 'Longitude': 21.04543},
-        'Kabaty': {'Latitude': 52.13109, 'Longitude': 21.06604},
-        'Ursynów': {'Latitude': 52.16217, 'Longitude': 21.02858},
-        'Natolin': {'Latitude': 52.14033, 'Longitude': 21.05776},
-        'Bemowo': {'Latitude': 52.2393879, 'Longitude': 20.9175868},
-        'Ulrychów': {'Latitude': 52.2402211, 'Longitude': 20.9286984},
-        'Księcia Janusza': {'Latitude': 52.238989, 'Longitude': 20.9413589},
-        'Młynów': {'Latitude': 52.2370368, 'Longitude': 20.9582514},
-        'Płocka': {'Latitude': 52.2331322, 'Longitude': 20.9672229},
-        'Rondo Daszyńskiego': {'Latitude': 52.2302503, 'Longitude': 20.9812049},
-        'Rondo ONZ': {'Latitude': 52.2326673, 'Longitude': 20.9943419},
-        'Nowy Świat Uniwersytet': {'Latitude': 52.2372522, 'Longitude': 21.0163951},
-        'Centrum Nauki Kopernik': {'Latitude': 52.2405898, 'Longitude': 21.029495},
-        'Stadion Narodowy': {'Latitude': 52.2468026, 'Longitude': 21.0437104},
-        'Wileński': {'Latitude': 52.2552165, 'Longitude': 21.0373375},
-        'Szwedzka': {'Latitude': 52.2658294, 'Longitude': 21.0477777},
-        'Targówek+Mieszkaniowy': {'Latitude': 52.278611, 'Longitude': 21.0478345},
-        'Zacisze': {'Latitude': 52.278611, 'Longitude': 21.0478345},
-        'Kondratowicza': {'Latitude': 52.2844033, 'Longitude': 21.0489269},
-        'Bródno': {'Latitude': 52.2844033, 'Longitude': 21.0489269}              
-    }) -> float:
-    """
-    Calculates and returns the minimum distance from a given latitude and longitude to a set of predefined locations.
-
-    This function iterates through a dictionary of locations, each defined by its name and a dictionary containing its latitude and longitude, 
-    and calculates the distance from the provided latitude and longitude to each location using the Haversine formula. 
-    It returns the shortest distance found.
-
-    Parameters:
-    - lat (float): The latitude of the point from which the distance is to be calculated.
-    - lon (float): The longitude of the point from which the distance is to be calculated.
-    - locations (dict): A dictionary where keys are points names and values are dictionaries with keys 'Latitude' and 'Longitude' representing each point's location.
-        Defaults to calcuates distance to nearest Warsaw subway.
-
-    Returns:
-    - int: The shortest distance to the nearest location, rounded to to 3 decimal points.
-
-    Requires:
-    - An external Haversine formula implementation (hs.haversine) to calculate the distance between two latitude/longitude points.
-    """
-
-    if not locations:
-        return np.nan
+    # Extract the last update date if the line contains 'Aktualizacja:'
+    update_date_part = [line for line in ad_info.split('\\n') if 'Aktualizacja:' in line]
+    last_update = update_date_part[0].replace("('Aktualizacja: ", '').strip() if update_date_part else None
     
-    dist_lst = []
-    for coords in locations.values():
-        loc1 = (coords['Latitude'], coords['Longitude'])
-        loc2 = (lat, lon)
-        dist_lst.append(hs.haversine(loc1, loc2))
+    # Extract the added date if the line contains 'Dodano:'
+    added_date_part = [line for line in ad_info.split('\\n') if 'Dodano:' in line]
+    ad_added = added_date_part[0].replace('Dodano: ', '').strip() if added_date_part else None
     
-    return round(min(dist_lst), 3)
+    # Return the extracted dates as a pandas Series
+    return pd.Series([last_update, ad_added])
 
-def contains_keywords_nlp(description: str, keywords: list,
-                          negations: list = ['nie', 'brak'],
-                          negation_distance: int = 2) -> bool:
+def process_data(data_draw):
     """
-    Determines whether a textual description contains any specified keywords and considers the influence of nearby negation words.
+    Processes raw advertisement data to extract and organize relevant information.
 
-    This function processes a text description using a natural language processing model to break the text into sentences and tokenize them.
-    For each sentence, it checks if any of the provided keywords are present and then examines if any negation words are
-    close enough to potentially negate the meaning of the keyword. The function returns True if a keyword is found without
-    a nearby negation that affects its context, and it stops further analysis once a valid keyword is detected.
+    This function takes a DataFrame containing advertisement data and performs several transformations:
+    - Identifies and extracts the district name from the 'location' column using the `find_warsaw_district` function.
+    - Removes rows where the district name could not be identified.
+    - Extracts the last update date and added date from the 'announcement_date' column using the `extract_ad_dates` function.
+    - Drops the 'announcement_date' column as it is no longer needed.
+    - Reorders the columns to place 'added_dt', 'last_update', and 'link' at the beginning.
 
     Parameters:
-    - description (str): The text description to analyze for the presence of keywords.
-    - keywords (list): A list of keywords to search for in the description.
-    - negations (list): A list of negation words (default includes 'nie', 'brak') that can alter the context of the keywords.
-    - negation_distance (int): The maximum allowable distance (in terms of token indices) between a keyword and a negation word to consider the keyword negated.
+    - data_draw (pd.DataFrame): A DataFrame containing raw advertisement data with at least 
+      'location', 'announcement_date', and 'link' columns.
 
     Returns:
-    - bool: True if at least one keyword is found in the description without being negated, False otherwise.
-
-    Requires:
-    - A loaded natural language processing model (nlp) to tokenize the text and extract sentences and tokens.
+    - pd.DataFrame: A cleaned and organized DataFrame with extracted and reordered information.
     """
-    try:
-        doc = nlp(description.lower())
-    except AttributeError:
-        return False
+
+    df = data_draw.copy()
     
-    contains_keywords = False
-    for sentence in doc.sents:
-        keywords_presence = [token for token in sentence if token.lemma_ in keywords]
-        negation_presence = [token for token in sentence if token.lemma_ in negations]
-        
-        # Check if any negation is close to a furniture keyword
-        if keywords_presence:
-            contains_keywords = not any(negation.i < keyword_token.i + negation_distance and negation.i > keyword_token.i - negation_distance
-                                 for negation in negation_presence
-                                 for keyword_token in keywords_presence)
-            if contains_keywords:
-                break
-
-    return contains_keywords
-
-def contains_keywords_morf(description: str, keywords: list):
-    """
-    Determines whether a given text description contains any of a list of keywords based on morphological analysis.
-
-    This function processes the input text using a natural language processing model to tokenize the text.
-    For each token, it performs a morphological analysis to identify the base form of the word.
-    The function then checks if this base form matches any of the keywords provided in the list.
-    It returns True as soon as a keyword match is found and stops further analysis.
-
-    Parameters:
-    - description (str): The text description to analyze for the presence of keywords.
-    - keywords (list): A list of keyword strings to search for in the text, based on their morphological base forms.
-
-    Returns:
-    - bool: True if at least one of the keywords is found in the text, False otherwise.
-
-    Requires:
-    - A loaded natural language processing model (nlp) to tokenize the text.
-    - A morphological analysis tool morfeusz2 (morf) that provides the base form of each token.
-    """
-
-    try:
-        doc = nlp(description.lower())
-    except AttributeError:
-        return False
-    
-    contains_keywords = False
-    for token in doc:
-        analysis = morf.analyse(token.text)
-        try:
-            contains_keywords = True if analysis[0][2][1] in keywords else contains_keywords
-        except IndexError:
-            continue
-
-        if contains_keywords:
-            break
-            
-    return contains_keywords
-
-def initialize_nlp() -> None:
-    """
-    Initializes a global NLP model using the spaCy library with the Polish small model.
-    This allows the `nlp` model to be used elsewhere in the code after initialization.
-
-    Returns:
-    - None
-    """
-    global nlp
-    nlp = spacy.load("pl_core_news_sm")
-
-    return None
-
-def initialize_morf() -> None:
-    """
-    Initializes a global morphological analyzer using the Morfeusz2 library.
-    This prepares `morf` for use throughout the codebase for morphological analysis tasks.
-
-    Returns:
-    - None
-    """
-    global morf
-    morf = morfeusz2.Morfeusz()
-
-    return None
-
-def parse_floor_values(row: str) -> tuple:
-    """
-    Parses a string containing floor information to extract the specific floor and the total number of floors in the building.
-
-    Parameters:
-    - row (str): The string from which to parse floor information. Can be NaN, a single number, a range in 'X/Y' format, 
-                 or special formats like 'parter' or '>X'.
-
-    Returns:
-    - tuple: A tuple containing two elements:
-        1. floor (int or None): The specific floor number, or None if not determinable.
-        2. building_height (int or None): The total number of floors in the building, or None if not applicable.
-    """
-    
-    if pd.isna(row):
-        return None, None
-    if '/' in row:
-        parts = row.split('/')
-        floor_part = parts[0].strip()
-        if floor_part.isdigit():
-            floor = int(floor_part)
-        elif floor_part == 'parter':
-            floor = 1
-        elif floor_part.startswith('>'):
-            floor = int(floor_part[1:].strip())
-        else:
-            floor = None
-
-        height_part = parts[1].strip()
-        if height_part.isdigit():
-            building_height = int(height_part)
-        else:
-            building_height = None
-    else:
-        floor = int(row) if row.isdigit() else None
-        building_height = None
-    
-    return floor, building_height
-
-def fill_column_with_stat(df: pd.DataFrame, column: str, method: str) -> None:
-    """
-    Fills missing values in the specified column of the DataFrame with a statistical measure
-    (mode, median, or mean) based on the 'method' parameter.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame containing the data.
-    - column (str): The name of the column to fill the missing values in.
-    - method (str): The statistical method to use for filling ('mode', 'median', 'mean').
-
-    Returns:
-    - None: Modifies the DataFrame in place.
-    """
-    if method not in ['mode', 'median', 'mean']:
-        raise ValueError("Method must be 'mode', 'median', or 'mean'")
-
-    if method == 'mode':
-        # Mode can return multiple values, we take the first one
-        fill_value = df[column].mode().iloc[0]
-    elif method == 'median':
-        fill_value = df[column].median()
-    elif method == 'mean':
-        fill_value = df[column].mean()
-
-    df[column].fillna(fill_value, inplace=True)
-
-def remove_duplicates(
-    df: pd.DataFrame,
-    column_name: str = 'link'):
-    """
-    Removes duplicates from the DataFrame based on the specified column name.
-
-    Parameters:
-    - df (pd.DataFrame): The input DataFrame.
-    - column_name (str): The name of the column to check for duplicates.
-
-    Returns:
-    - pd.DataFrame: The DataFrame with duplicates removed.
-    """
-    df = df.copy()
-    df = df.drop_duplicates(subset=column_name)
-
-    return df
-
-def scrub_data(
-    df: pd.DataFrame,
-    subway_locations: dict = {}) -> pd.DataFrame:
-    """
-    Cleans and processes a DataFrame containing apartment rental data.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame containing apartment data to be cleaned.
-    - subway_locations (dict, optional): A dictionary containing subway locations. If provided, it is used to calculate
-      the distance to the nearest subway station. Defaults to an empty dictionary.
-
-    Returns:
-    - pd.DataFrame: The cleaned and processed DataFrame.
-
-    Steps:
-    1. Converts specified columns to numerical values using the `get_numbers` function.
-    2. Extracts district names from the 'location' column, removes observations outside Warsaw, and removes Polish characters from district names.
-    3. Calculates distances to the nearest subway station and to the city center.
-    4. Determines whether the apartment is furnished.
-    5. Determines whether the apartment has a dishwasher.
-    6. Determines whether the apartment has air conditioning.
-    7. Determines whether the apartment description indicates premium class.
-    8. Determines whether the apartment needs renovation.
-    9. Adjusts the 'students_allowed' column to a binary form.
-    10. Adjusts the 'elevator' column to a binary form.
-    11. Adjusts the 'parking_space' column to a binary form based on the presence of non-null values.
-    12. Parses the 'floor' column to create separate 'floor' and 'building_height' columns.
-    13. Converts the 'room_num' column to an integer data type.
-    14. Adds 'additional_fees' to 'rent_price' and drops the 'additional_fees' column.
-    15. Converts all Boolean columns to integer data types.
-    16. Drops the 'additional_information', 'link' column.
-    """
-
-    # Copy df
-    df = df.copy()
-
-    # Step 1 apply get_numbers function to specific columns
-    columns_to_convert = ['rent_price', 'additional_fees', 'area', 'room_num']
-    for column in columns_to_convert:
-        df[column] = df[column].apply(lambda x: get_numbers(str(x)))
-
-    # Step 2 get district name from location, drop location,
-    # Remove observations outside of Warsaw,
-    # Remove Polish characters from district names
+    # Extract district names from the 'location' column and create a new 'district' column
     df['district'] = df['location'].apply(lambda x: find_warsaw_district(str(x)))
-    df.drop(['location'], axis=1, inplace=True)
+    
+    # Remove rows where the district name could not be identified
     df = df[~df.district.isna()]
-    df['district'] = df['district'].apply(lambda x: replace_characters(str(x)))
-
-    # Step 3 calcuate distance to nearest subway and to city center
-    if subway_locations:
-        df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude'], subway_locations), axis=1)
-    else:
-        df['subway_distance'] = df.apply(lambda row: nearest_distance(row['latitude'], row['longitude']), axis=1)
-
-    df['center_distance'] = df.apply(lambda row: round(hs.haversine(
-        (row['latitude'], row['longitude']), (52.2297, 21.0122)),3), axis=1)
-
-    # Step 4 Determine whether apartment is furnished - create binary column
-    initialize_nlp()
-
-    furnishing_keywords = [
-    'umeblowany', 'umeblowana', 'umeblowane',
-    'wyposażony', 'wyposażona', 'wyposażone',
-    'meble', 'meblami'
-    'łóżko', 'łóżkiem', 'łóżkami'
-    'sofa', 'sofą', 'sofami'
-    'szafa', 'szafą', 'szafami'
-    'pralka', 'pralką']
-
-    df['is_furnished'] = df.apply(
-        lambda row: not pd.isna(row['furnishings']) or contains_keywords_nlp(row['adv_description'], furnishing_keywords),
-        axis=1)
-
-    # Step 5 Determine whether apartment has a dishwasher - create binary column
-    # Drop furnishings column
-    initialize_morf()
-
-    dishwasher_keywords = ['zmywarka']
-
-    df['dishwasher'] = df.apply(
-        lambda row: (not pd.isna(row['furnishings']) and 'zmywarka' in row['furnishings']) or\
-            contains_keywords_morf(row['adv_description'], dishwasher_keywords),
-        axis=1)
-    df.drop(['furnishings'], axis=1, inplace=True)
     
-    # Step 6 Determine whether the apartment has air conditioning - create binary column
-    air_conditioning_keywords = ['klimatyzacja', 'klimatyzator']
-
-    df['air_conditioning'] = df.apply(
-        lambda row: (not pd.isna(row['additional_information']) and 'klimatyzacja' in row['additional_information']) or\
-            contains_keywords_morf(row['adv_description'], air_conditioning_keywords),
-        axis=1)
+    # Extract 'last_update' and 'added_dt' dates using the `extract_ad_dates` function
+    df[['last_update', 'added_dt']] = df.apply(extract_ad_dates, axis=1)
     
-    # Step 7 Determines whether the apartment description indicates premium class.
-    # Drop adv_description column
-    premium_keywords = ['luksusowy', 'ekskluzywny', 'nowoczesny', 'prestigowy', 'prestiżowy', 'elitarny', 'elegancki', 'wyrafinować', 'designerski', 'premium', 'stylowy']
-
-    df['premium_class'] = df.apply(
-        lambda row: contains_keywords_morf(row['adv_description'], premium_keywords),
-        axis=1)
-
-    df.drop(['adv_description'], axis=1, inplace=True)
-
-    # Step 8 Determine whether the apartment have to be renovated
-    # Drop flat_condition column
-    df['for_renovation'] = df['flat_condition'].apply(
-        lambda x: False if pd.isna(x) or x == 'do zamieszkania' else True)
-    df.drop(['flat_condition'], axis=1, inplace=True)
-
-    # Step 9 Adjust students_allowed column to binary form
-    df['students_allowed'] = df['students_allowed'].apply(lambda x: x == 'tak')
-
-    # Step 10 Adjust elevator column to binary form
-    df['elevator'] = df['elevator'].apply(lambda x: x == 'tak')
-
-    # Step 11 Adjust parking_space column to binary form
-    df['parking_space'] = ~df.parking_space.isna()
-
-    # Step 12 Adjust floor column; create column building_height
-    df[['floor', 'building_height']] = df['floor'].apply(lambda x: pd.Series(parse_floor_values(x)))
-
-    # Step 13 Adjust room_num to int data type
-    df['room_num'] = df['room_num'].astype(int)
-
-    # Step 14 Sum up additional_fees to rent_price
-    # Drop rent_price column
-    df['rent_price'] = df.apply(
-    lambda row: row['rent_price'] + row['additional_fees'] if not pd.isna(row['additional_fees']) else row['rent_price'], 
-    axis=1)
-
-    df.drop(['additional_fees'], axis=1, inplace=True)
-
-    # Step 15 Change all columns with a Boolean dtype to an int dtype
-    df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
-
-    # Step 16 Drop unnecessary columns
-    df.drop(['additional_information', 'link'], axis=1, inplace=True)
+    # Drop the 'announcement_date' column as it is no longer needed
+    df.drop(['announcement_date'], axis=1, inplace=True)
     
-    return df
-
-def modeling_preprocessing(df : pd.DataFrame) -> pd.DataFrame:
-
-    # Copy df
-    df = df.copy()
-
-    # Step 1 Create binary columns from building_type
-    df['bt_apartment'] = df['building_type'].fillna('').str.contains('apartamentowiec')
-    df['bt_tenement'] = df['building_type'].fillna('').str.contains('kamienica')
-    # Base_level:
-    # df['bt_block'] = df['building_type'].str.contains('blok')
-    df['bt_other'] = ~df['building_type'].fillna('').isin(['apartamentowiec', 'kamienica', 'blok'])
-    df.drop(['building_type'], axis=1, inplace=True)
-
-    # Step 2 Create binary columns from advertiser_type
-    # Drop advertiser_type column
-    # Base_level:
-    # df['at_private'] = df.advertiser_type.str.contains('prywatny')
-    df['at_agency'] = df.advertiser_type.str.contains('biuro nieruchomości')
-    df['at_developer'] = df.advertiser_type.str.contains('deweloper')
-    df.drop(['advertiser_type'], axis=1, inplace=True)
-
-    # Step 3 Create binary columns from extra_space
-    # Drop extra_space column
-    df['balcony'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'balkon' in x else False)
-    df['terrace'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'taras' in x else False)
-    df['garden'] = df['extra_space'].apply(lambda x: True if type(x)==str and 'ogródek' in x else False)
-    df.drop(['extra_space'], axis=1, inplace=True)
-
-    # Step 4 Create binary columns from year_of_construction
-    # Drop year_of_construction column
-    df['cy_old_building'] = np.where(df['year_of_construction'] <= 1950, True, False)
-    df['cy_new_building'] = np.where(df['year_of_construction'] >= 2000, True, False)
-    # Base level:
-    # df['cy_other'] = np.where(~df['cy_old_building'] & ~df['cy_new_building'], True, False)
-    df.drop(['year_of_construction'], axis=1, inplace=True)
-
-    # Step 5 Create binary columns from district
-    # Drop district column
-    df = pd.get_dummies(df, columns=['district'])
-    # Base_level:
-    # df.drop(['district_Mokotow'], axis=1, inplace=True)
-
-    # Step 6 Change all columns with a Boolean dtype to an int dtype
-    df = df.apply(lambda x: x.astype(int) if x.dtype == 'bool' else x)
-
-    # Step 7 Drop latitude, longitude columns
-    df.drop(['latitude', 'longitude'], axis=1, inplace=True)
-
-    # Step 8 Fill missing values
-    fill_column_with_stat(df, 'floor', 'median')
-    fill_column_with_stat(df, 'building_height', 'median')
-
-    return df
-
-def concat_csv_files(
-    folder_path: str = 'data_raw',
-    regex_pattern: str = r'^.*otodom_last7.*\.csv$') -> pd.DataFrame:
-    """
-    Reads all CSV files in a specified folder, filters them by a regex pattern, and concatenates them into a single DataFrame.
-
-    Parameters:
-    - folder_path (str): The path to the folder containing CSV files.
-    - regex_pattern (str): The regex pattern to filter file names.
-
-    Returns:
-    - pd.DataFrame: A concatenated DataFrame containing data from all filtered CSV files.
-    """
-
-    dfs = []
-
-    for filename in os.listdir(folder_path):
-        if re.match(regex_pattern, filename):
-            file_path = os.path.join(folder_path, filename)
-            dfs.append(pd.read_csv(file_path))
+    # Reorder columns to place 'added_dt', 'last_update', and 'link' at the beginning
+    columns_order = ['added_dt', 'last_update', 'link'] + \
+                    [col for col in df.columns if col not in ['added_dt', 'last_update', 'link']]
+    df = df[columns_order]
     
-    if dfs:
-        return pd.concat(dfs, ignore_index=True)
-    else:
-        return pd.DataFrame()
-
-def initialize_driver() -> selenium.webdriver.chrome.webdriver.WebDriver:  
-    """
-    Initializes and returns a Chrome WebDriver instance that navigates to Google Maps and handles an initial cookie acceptance popup.
-
-    This function creates a new instance of the Chrome WebDriver, navigates to the Google Maps URL, and waits briefly to ensure the page loads correctly. It then finds and clicks the 'Accept All' button for cookies using an XPATH selector to handle site permissions before the actual automation tasks can be performed.
-
-    Returns:
-    - selenium.webdriver.chrome.webdriver.WebDriver: A WebDriver instance with the Google Maps page loaded and initial dialogs handled.
-    """
-    
-    driver = webdriver.Chrome()
-    driver.get('https://www.google.com/maps')
-
-    sleep(0.5)
-    driver.find_element(By.XPATH, '//button/span[text()="Zaakceptuj wszystko"]').click()
-    sleep(0.5)
-    
-    return driver
-
-def get_location(
-    driver: selenium.webdriver.chrome.webdriver.WebDriver,
-    address: str) -> list:
-    """
-    Retrieves the geographic coordinates of an address by inputting it into Google Maps and extracting the coordinates from the resulting URL.
-
-    Parameters:
-    - driver (selenium.webdriver.chrome.webdriver.WebDriver): An instance of a Selenium WebDriver, specifically configured for Chrome.
-    - address (str): The address for which geographic coordinates are to be retrieved.
-
-    Returns:
-    - list: A list containing the latitude and longitude as strings.
-    """
-    
-    sleep(2)
-    input_box = driver.find_element(By.XPATH, '//input[@id="searchboxinput"]')
-    input_box.clear()
-    sleep(2)
-    input_box.send_keys(address)
-    driver.find_element(By.XPATH, '//button[@id="searchbox-searchbutton"]').click()
-    sleep(4)
-    current_url = driver.current_url
-    
-    geo_location = re.search('@(.*),',str(current_url)).group(1).split(',')
-    
-    return geo_location
-
-def add_geo_location(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Updates a pandas DataFrame with latitude and longitude coordinates for each row by querying Google Maps.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame that contains at least a 'location' column and columns for 'latitude' and 'longitude' which may have missing values.
-
-    Returns:
-    - pd.DataFrame: The original DataFrame updated with latitude and longitude coordinates where they were missing.
-    """
-    
-    if not df[['latitude', 'longitude']].isnull().values.any():
-        return df
-    
-    driver = initialize_driver()
-    sleep(1)
-    for index, row in df.iterrows():
-        if pd.isna(row['latitude']) and pd.isna(row['longitude']):
-            geo_location = get_location(driver, row['location'])
-            df.at[index, 'latitude'] = float(geo_location[0])
-            df.at[index, 'longitude'] = float(geo_location[1])
-            
-    return df
-
-def fix_missing_locations(
-    folder_path: str = 'data_raw',
-    regex_pattern: str = r'^.*otodom_last7.*\.csv$') -> None:
-    """
-    Processes each CSV file in a specified directory that matches a given regex pattern, 
-    updating missing geographic coordinates in the 'latitude' and 'longitude' columns.
-
-    Parameters:
-    - folder_path (str): The directory path where CSV files are stored. Defaults to 'data_raw'.
-    - regex_pattern (str): A regex pattern to match file names that should be processed. 
-        Defaults to r'^.*otodom_last7.*\.csv$', which targets files typically named according to a convention 
-        used for weekly data dumps from the website Otodom.
-
-    Returns:
-    - None: This function does not return a value but writes directly to the CSV files.
-    """
-    
-    for filename in os.listdir(folder_path):
-        if re.match(regex_pattern, filename):
-            file_path = os.path.join(folder_path, filename)
-            df = pd.read_csv(file_path)
-            df = add_geo_location(df)
-            df.to_csv(file_path, encoding='utf-8', index=False)
-            
-    return None
-
-def translate_column(
-    df: pd.DataFrame,
-    column: str,
-    translation_dict: dict) -> pd.DataFrame:
-    """
-    Translates the values in a specified column of a DataFrame based on a provided dictionary.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame containing the column to be translated.
-    - column (str): The name of the column whose values are to be translated.
-    - translation_dict (dict): A dictionary where keys are the original values 
-      and values are the translated values.
-
-    Returns:
-    - pd.DataFrame: The DataFrame with the translated column values.
-    """
-    
-    df[column] = df[column].map(translation_dict)
-    return df
-
-def translate_df(
-        df: pd.DataFrame,
-        advertiser_type_translation: dict = {
-            'prywatny': 'private',
-            'biuro nieruchomości': 'real estate agency',
-            'deweloper': 'developer'},
-        building_type_translation: dict = {
-            'apartamentowiec': 'apartment building',
-            'blok': 'block of flats',
-            'kamienica': 'tenement house',
-            'dom wolnostojący': 'detached house',
-            'szeregowiec': 'terraced house',
-            'plomba': 'infill building',
-            'loft': 'loft'
-        }) -> pd.DataFrame:
-    """
-    Translates values in 'advertiser_type' and 'building_type' columns of a DataFrame using provided dictionaries.
-
-    Parameters:
-    - df (pd.DataFrame): The DataFrame containing the columns to be translated.
-    - advertiser_type_translation (dict, optional): A dictionary for translating 'advertiser_type' values. 
-      Defaults to mapping Polish terms to English equivalents.
-    - building_type_translation (dict, optional): A dictionary for translating 'building_type' values. 
-      Defaults to mapping Polish terms to English equivalents.
-
-    Returns:
-    - pd.DataFrame: The DataFrame with translated 'advertiser_type' and 'building_type' column values.
-    """
-
-    df = translate_column(df, 'building_type', building_type_translation)
-    df = translate_column(df, 'advertiser_type', advertiser_type_translation)
-
     return df

@@ -190,13 +190,14 @@ def get_adv_description(
     
     return adv_description
 
-def get_text_from_class(driver, class_name):
+def get_text_from_class(driver, element, class_name):
     """
     Retrieves the text content of an element identified by its class name.
 
     Parameters:
     - driver (selenium.webdriver.chrome.webdriver.WebDriver): The Selenium WebDriver instance used to interact with the 
     web page.
+    - element (str): The name of searched element.
     - class_name (str): The class name of the target element.
 
     Returns:
@@ -204,7 +205,7 @@ def get_text_from_class(driver, class_name):
     """
 
     try:
-        text = driver.find_element(By.XPATH, f"//div[@class='{class_name}']").text
+        text = driver.find_element(By.XPATH, f"//{element}[@class='{class_name}']").text
     except NoSuchElementException:
         text = None
     return text
@@ -287,8 +288,9 @@ def scrape_single_announcement(
         pass
     
     scrape_dict = {
-        'rent_price' : get_text_from_class(driver, 'css-1ifvn3m ef3kcx02'),
-        'area_room_num' : get_text_from_class(driver, 'css-58w8b7 eezlw8k0'),
+        'title': get_text_from_class(driver, 'h1', 'css-wqvm7k ef3kcx01').strip(),
+        'rent_price' : get_text_from_class(driver, 'div', 'css-1ifvn3m ef3kcx02'),
+        'area_room_num' : get_text_from_class(driver, 'div', 'css-58w8b7 eezlw8k0'),
         'floor': get_text_from_main_table(driver, 'Piętro'),
         'ogrzewanie':get_text_from_main_table(driver, 'Ogrzewanie'),
         'flat_condition': get_text_from_main_table(driver, 'Stan wykończenia'),
@@ -296,7 +298,7 @@ def scrape_single_announcement(
         'deposit': get_text_from_main_table(driver, 'Kaucja'),
         'advertiser_type': get_text_from_main_table(driver, 'Typ ogłoszeniodawcy'),
         'additional_information': get_text_from_main_table(driver, 'Informacje dodatkowe'),
-        'location': get_text_from_class(driver, 'css-70qvj9 e42rcgs0')
+        'location': get_text_from_class(driver, 'div', 'css-70qvj9 e42rcgs0')
     }
     
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -331,7 +333,7 @@ def scrape_single_announcement(
     scrape_dict['utilities'] = get_text_from_supp_table(driver, 'Wyposażenie', 'Media')
     scrape_dict['safeguards'] = get_text_from_supp_table(driver, 'Wyposażenie', 'Zabezpieczenia')
     
-    scrape_dict['announcement_date'] = get_text_from_class(driver, 'css-gg4vpm e2md81j0'),
+    scrape_dict['announcement_date'] = get_text_from_class(driver, 'div', 'css-gg4vpm e2md81j0'),
     scrape_dict['adv_description'] = get_adv_description(driver)
     
     return scrape_dict
@@ -365,8 +367,10 @@ def scrape_otodom_announcements(
     # Loop through scraped announcements links
     for i in announcements_links:
         single_announcement = scrape_single_announcement(driver, i, sleep_length)
-        single_announcement['link'] = i
-        scraped_dicts.append(single_announcement)
+        #### TO DO
+        if single_announcement is not None:
+            single_announcement['link'] = i
+            scraped_dicts.append(single_announcement)
 
     # Concatenate dictionaries
     concat_dict = defaultdict(list)
@@ -389,7 +393,7 @@ def scrape_otodom_announcements(
 
 def run_otodom_scraper(
     first_page_url : str,
-    add_filtered_links : False,
+    add_filtered_links : bool = False,
     filtered_links_dict : dict = {},
     return_df : bool = True,
     sleep_length : float = 1,
@@ -459,4 +463,62 @@ def run_otodom_scraper(
                   encoding='utf-8',
                   index=False)
     
+    return df if return_df else None
+
+def get_links_titles(
+    first_page_url : str,
+    sleep_length : float = 1,
+    return_df : bool = True,
+    save_as_csv : bool = True,
+    csv_file_name_prefix : str = 'available_ads',
+    csv_destination_path : str = 'data_raw') -> pd.DataFrame:
+    
+    
+    driver = initialize_otodom_scraper(sleep_length)
+    
+    # Container
+    announcements = []
+
+    # Loop through otodom using link with prefilled search
+    i=1
+    while True:
+        site = re.sub('&page=[^&]*', f'&page={i}', first_page_url)
+        driver.get(site)
+
+        # Iter until page without new result appears
+        try:
+            driver.find_element(By.XPATH, '//div[@data-cy="no-search-results"]')
+            break
+        except NoSuchElementException:
+            i+=1
+        
+        # Go to the down of the page to load all announcements
+        sleep(sleep_length)
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        sleep(sleep_length)
+        
+        # Get announcements links and titles
+        links = driver.find_elements(By.XPATH, '//a[@data-cy="listing-item-link"]')
+        titles = driver.find_elements(By.XPATH, '//p[@data-cy="listing-item-title"]')
+        
+        # Collect data
+        for link, title in zip(links, titles):
+            announcements.append({
+                "link": link.get_attribute('href'),
+                "title": title.text.strip()
+            })
+
+    # Remove duplicates; return result
+    df = pd.DataFrame(announcements).drop_duplicates().reset_index(drop=True)
+    current_date = datetime.now().strftime("%Y_%m_%d")
+    df['date'] = current_date
+    
+    # Save as csv
+    if save_as_csv:
+        file_name = f"{csv_file_name_prefix}_{current_date}.csv"
+        path = f'{csv_destination_path}/{file_name}'
+        df.to_csv(path,
+                  encoding='utf-8',
+                  index=False)
+        
     return df if return_df else None
