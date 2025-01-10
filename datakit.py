@@ -32,36 +32,15 @@ def find_warsaw_district(input_string) -> str:
 
     return None
 
-def extract_ad_dates(row):
-    """
-    Extracts and returns the last update date and added date from an advertisement's metadata.
-
-    The function processes a given row from a DataFrame, which contains an 'announcement_date' field
-    with metadata formatted as strings separated by newline characters. It identifies and extracts 
-    lines containing 'Aktualizacja:' (last update) and 'Dodano:' (added date). If either date is not found, 
-    the corresponding return value is None.
-
-    Parameters:
-    - row (pd.Series): A row from a DataFrame containing an 'announcement_date' field.
-
-    Returns:
-    - pd.Series: A series containing two elements:
-        - The last update date as a string (or None if not available).
-        - The added date as a string (or None if not available).
-    """
-    # Extract the 'announcement_date' field from the row
-    ad_info = row['announcement_date']
+def extract_last_update_date(ad_info):
     
-    # Extract the last update date if the line contains 'Aktualizacja:'
     update_date_part = [line for line in ad_info.split('\\n') if 'Aktualizacja:' in line]
-    last_update = update_date_part[0].replace("('Aktualizacja: ", '').strip() if update_date_part else None
+    return update_date_part[0].replace("('Aktualizacja: ", '').strip() if update_date_part else None
+
+def extract_added_date(ad_info):
     
-    # Extract the added date if the line contains 'Dodano:'
     added_date_part = [line for line in ad_info.split('\\n') if 'Dodano:' in line]
-    ad_added = added_date_part[0].replace('Dodano: ', '').strip() if added_date_part else None
-    
-    # Return the extracted dates as a pandas Series
-    return pd.Series([last_update, ad_added])
+    return added_date_part[0].replace('Dodano: ', '').strip() if added_date_part else None
 
 def process_data(data_draw):
     """
@@ -91,14 +70,17 @@ def process_data(data_draw):
     df = df[~df.district.isna()]
     
     # Extract 'last_update' and 'added_dt' dates using the `extract_ad_dates` function
-    df[['last_update', 'added_dt']] = df.apply(extract_ad_dates, axis=1)
-    
-    # Drop the 'announcement_date' column as it is no longer needed
+    df['last_update'] = df['announcement_date'].apply(lambda x: extract_last_update_date(str(x)))
+    df['added_dt'] = df['announcement_date'].apply(lambda x: extract_added_date(str(x)))
     df.drop(['announcement_date'], axis=1, inplace=True)
     
-    # Reorder columns to place 'added_dt', 'last_update', and 'link' at the beginning
-    columns_order = ['added_dt', 'last_update', 'link'] + \
-                    [col for col in df.columns if col not in ['added_dt', 'last_update', 'link']]
+    # Add columns
+    df['expired'] = 0
+    df['expired_date'] = None
+
+    # Reorder columns
+    to_order = ['added_dt', 'last_update', 'link', 'expired', 'expired_date']
+    columns_order = to_order + [col for col in df.columns if col not in to_order]
     df = df[columns_order]
     
     return df

@@ -522,3 +522,38 @@ def get_links_titles(
                   index=False)
         
     return df if return_df else None
+
+def search_for_inactive(
+    announcements_links : list,
+    sleep_length : float = 1,
+    return_df : bool = True,
+    save_as_csv : bool = True,
+    csv_file_name_prefix : str = 'search_for_inactive',
+    csv_destination_path : str = 'data_raw') -> pd.DataFrame:
+    
+    driver = initialize_otodom_scraper(sleep_length)
+    
+    output = []
+    for i in announcements_links:
+        driver.get(i)
+        sleep(sleep_length)
+        
+        try:
+            expired = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
+            output.append([i, 1])
+        except NoSuchElementException:
+            output.append([i, 0])
+            
+    df = pd.DataFrame(output, columns=['link', 'expired'])
+    current_date = datetime.now().strftime("%Y_%m_%d")
+    df['expired_date'] = current_date
+        
+    # Save as csv
+    if save_as_csv:
+        file_name = f"{csv_file_name_prefix}_{current_date}.csv"
+        path = f'{csv_destination_path}/{file_name}'
+        df.to_csv(path,
+                  encoding='utf-8',
+                  index=False)
+        
+    return df if return_df else None
