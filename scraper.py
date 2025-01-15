@@ -26,7 +26,7 @@ Features:
 import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from time import sleep
 import re
 import pandas as pd
@@ -535,14 +535,17 @@ def search_for_inactive(
     
     output = []
     for i in announcements_links:
-        driver.get(i)
-        sleep(sleep_length)
         
         try:
-            expired = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
-            output.append([i, 1])
-        except NoSuchElementException:
-            output.append([i, 0])
+            driver.get(i)
+            sleep(sleep_length)
+            try:
+                expired = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
+                output.append([i, 1])
+            except NoSuchElementException:
+                output.append([i, 0])
+        except WebDriverException:
+            continue
             
     df = pd.DataFrame(output, columns=['link', 'expired'])
     current_date = datetime.now().strftime("%Y_%m_%d")
