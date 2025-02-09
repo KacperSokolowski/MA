@@ -288,8 +288,8 @@ def scrape_single_announcement(
         pass
     
     scrape_dict = {
-        'title': get_text_from_class(driver, 'h1', 'css-wqvm7k ef3kcx01').strip(),
-        'rent_price' : get_text_from_class(driver, 'div', 'css-1ifvn3m ef3kcx02'),
+        'title': get_text_from_class(driver, 'h1', 'css-4utb9r e1levl7i1').strip(),
+        'rent_price' : get_text_from_class(driver, 'div', 'css-f6whum e1k1vyr20'),
         'area_room_num' : get_text_from_class(driver, 'div', 'css-58w8b7 eezlw8k0'),
         'floor': get_text_from_main_table(driver, 'Piętro'),
         'ogrzewanie':get_text_from_main_table(driver, 'Ogrzewanie'),
