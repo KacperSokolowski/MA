@@ -282,25 +282,29 @@ def scrape_single_announcement(
     sleep(sleep_length)
     
     try:
-        expired = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
+        expired1 = driver.find_element(By.XPATH, "//div[@data-cy='expired-ad-alert']")
+        expired2 = driver.find_element(By.XPATH, "//div[@data-cy='redirectedFromInactiveAd']")
         return None
     except NoSuchElementException:
         pass
     
-    scrape_dict = {
-        'title': get_text_from_class(driver, 'h1', 'css-4utb9r e1levl7i1').strip(),
-        'rent_price' : get_text_from_class(driver, 'div', 'css-f6whum e1k1vyr20'),
-        'area_room_num' : get_text_from_class(driver, 'div', 'css-58w8b7 eezlw8k0'),
-        'floor': get_text_from_main_table(driver, 'Piętro'),
-        'ogrzewanie':get_text_from_main_table(driver, 'Ogrzewanie'),
-        'flat_condition': get_text_from_main_table(driver, 'Stan wykończenia'),
-        'available_from': get_text_from_main_table(driver, 'Dostępne od'),
-        'deposit': get_text_from_main_table(driver, 'Kaucja'),
-        'advertiser_type': get_text_from_main_table(driver, 'Typ ogłoszeniodawcy'),
-        'additional_information': get_text_from_main_table(driver, 'Informacje dodatkowe'),
-        'location': get_text_from_class(driver, 'div', 'css-70qvj9 e42rcgs0')
-    }
-    
+    try:
+        scrape_dict = {
+            'title': get_text_from_class(driver, 'h1', 'css-4utb9r e1levl7i1').strip(),
+            'rent_price' : get_text_from_class(driver, 'div', 'css-f6whum e1k1vyr20'),
+            'area_room_num' : get_text_from_class(driver, 'div', 'css-58w8b7 eezlw8k0'),
+            'floor': get_text_from_main_table(driver, 'Piętro'),
+            'ogrzewanie':get_text_from_main_table(driver, 'Ogrzewanie'),
+            'flat_condition': get_text_from_main_table(driver, 'Stan wykończenia'),
+            'available_from': get_text_from_main_table(driver, 'Dostępne od'),
+            'deposit': get_text_from_main_table(driver, 'Kaucja'),
+            'advertiser_type': get_text_from_main_table(driver, 'Typ ogłoszeniodawcy'),
+            'additional_information': get_text_from_main_table(driver, 'Informacje dodatkowe'),
+            'location': get_text_from_class(driver, 'div', 'css-70qvj9 e42rcgs0')
+        }
+    except AttributeError: 
+        return None
+        
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     sleep(sleep_length/2)
     try:
