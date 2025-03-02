@@ -16,7 +16,6 @@ def daily_data_run(
     # Read main
     main = pd.read_csv(main_path)
 
-    ### TODO Add rent price updates
     # Search for inactive
     inactive = search_for_inactive(
         list(main[main.expired.eq(0)].link),
