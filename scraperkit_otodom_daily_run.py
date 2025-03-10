@@ -45,7 +45,7 @@ def daily_data_run(
     driver.close()
 
     # Process scrabed announcements
-    new_records = process_data(new_records)
+    new_records = prepare_for_append(new_records)
     new_records = new_records[~new_records.link.isin(main.link)]
 
     # Concat main and newly scraped announcements

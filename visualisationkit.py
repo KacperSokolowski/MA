@@ -57,7 +57,7 @@ def plot_heat_map_district(
         cmap = 'Reds'
     elif plot_type == 'median_rent':
         # Calculate the median rent price in each district
-        median_rent_prices = districts_with_counts.groupby('index_right')['rent_price'].median()
+        median_rent_prices = districts_with_counts.groupby('index_right')['rent'].median()
         districts['median_rent_price'] = median_rent_prices
         districts['median_rent_price'] = districts['median_rent_price'].fillna(0)
         column_to_plot = 'median_rent_price'
@@ -142,7 +142,7 @@ def plot_heat_map_grid_cells(
         cmap = 'Reds'
     elif plot_type == 'median_rent':
         # Calculate the median rent price in each grid cell
-        median_rent_prices = grid_cells_with_counts.groupby('index_right')['rent_price'].median()
+        median_rent_prices = grid_cells_with_counts.groupby('index_right')['rent'].median()
         grid_cells_within_warsaw['median_rent_price'] = median_rent_prices
         grid_cells_within_warsaw['median_rent_price'] = grid_cells_within_warsaw['median_rent_price'].fillna(0)
         column_to_plot = 'median_rent_price'
