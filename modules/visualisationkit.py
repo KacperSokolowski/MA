@@ -35,7 +35,7 @@ def plot_duration_histogram(df, convert_date):
     
     # Plot style
     plt.style.use('seaborn-v0_8-whitegrid')
-    bins = range(1, 34)
+    bins = range(1, 50)
     plt.figure(figsize=(8, 6))
     
     # Plot histogram
@@ -49,9 +49,9 @@ def plot_duration_histogram(df, convert_date):
     # Labels and ticks
     plt.xlabel('Days Difference', fontsize=12, labelpad=10)
     plt.ylabel('Frequency',    fontsize=12, labelpad=10)
-    plt.xticks(np.arange(0, 33, 5), fontsize=10)
+    plt.xticks(np.arange(0, 50, 5), fontsize=10)
     plt.yticks(fontsize=10)
-    plt.xlim(0, 34)
+    plt.xlim(0, 50)
     
     # Grid and spines
     plt.grid(axis='y', alpha=0.4)
